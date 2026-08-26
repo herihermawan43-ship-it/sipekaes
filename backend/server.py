@@ -521,7 +521,6 @@ async def stats_desa_detail(current=Depends(get_current_user)):
 
 @api_router.get("/stats/rw-detail")
 async def stats_rw_detail(current=Depends(get_current_user)):
-    """Aggregate per RW."""
     def key_of(d):
         nik = (d.get('nik') or '').strip()
         if nik: return f"NIK:{nik}"
@@ -557,6 +556,68 @@ async def stats_rw_detail(current=Depends(get_current_user)):
         e = ensure(sp)
         if e: e['simpatisan'] += 1; e['total'] += 1
     return sorted(by_rw.values(), key=lambda x: (x['kecamatan'], x['desa'], x['rw']))
+
+@api_router.get("/stats/daily-growth")
+async def daily_growth(days: int = 30, current=Depends(get_current_user)):
+    """Return daily counts of new simpatisan/kader/saksi for last N days + last update timestamps."""
+    from datetime import date
+    days = max(1, min(90, days))
+    now = datetime.utcnow()
+    since = now - timedelta(days=days - 1)
+    # Bucket by date
+    buckets = {}
+    for i in range(days):
+        d = (since + timedelta(days=i)).date().isoformat()
+        buckets[d] = {"date": d, "simpatisan": 0, "kader": 0, "saksi": 0}
+
+    last_update = {"simpatisan": None, "kader": None, "saksi": None}
+
+    for coll_name, key in [("simpatisan", "simpatisan"), ("kader", "kader"), ("saksi", "saksi")]:
+        # Latest doc for last_update
+        latest = await db[coll_name].find_one(sort=[("tanggal", -1)])
+        if latest and latest.get('tanggal'):
+            last_update[key] = latest['tanggal'].isoformat() if hasattr(latest['tanggal'], 'isoformat') else latest['tanggal']
+        # Bucket counts
+        cursor = db[coll_name].find({"tanggal": {"$gte": since}}, {"tanggal": 1})
+        async for d in cursor:
+            t = d.get('tanggal')
+            if not t: continue
+            key_d = t.date().isoformat() if hasattr(t, 'date') else str(t)[:10]
+            if key_d in buckets:
+                buckets[key_d][key] += 1
+
+    series = list(buckets.values())
+    # Add cumulative totals for each row (running total)
+    cum = {"simpatisan": 0, "kader": 0, "saksi": 0}
+    # Get starting totals (records before `since`)
+    for coll_name, key in [("simpatisan", "simpatisan"), ("kader", "kader"), ("saksi", "saksi")]:
+        cum[key] = await db[coll_name].count_documents({"tanggal": {"$lt": since}})
+    for row in series:
+        cum["simpatisan"] += row["simpatisan"]
+        cum["kader"] += row["kader"]
+        cum["saksi"] += row["saksi"]
+        row["total_simpatisan"] = cum["simpatisan"]
+        row["total_kader"] = cum["kader"]
+        row["total_saksi"] = cum["saksi"]
+        row["total_semua"] = cum["simpatisan"] + cum["kader"] + cum["saksi"]
+
+    # Latest last_update across all collections
+    latest_ts = max([v for v in last_update.values() if v] or [now.isoformat()])
+
+    return {
+        "series": series,
+        "last_update": {
+            "simpatisan": last_update["simpatisan"],
+            "kader": last_update["kader"],
+            "saksi": last_update["saksi"],
+            "latest": latest_ts,
+        },
+        "totals": {
+            "simpatisan_baru_30h": sum(r["simpatisan"] for r in series),
+            "kader_baru_30h": sum(r["kader"] for r in series),
+            "saksi_baru_30h": sum(r["saksi"] for r in series),
+        },
+    }
 
 # ================ EXCEL IMPORT / EXPORT ================
 @api_router.get("/simpatisan/template/excel")

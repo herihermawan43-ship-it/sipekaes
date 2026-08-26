@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react';
 import {
   Users, UserCheck, ShieldCheck, MapPin, Target as TargetIcon,
   Flag, TrendingUp, ChevronDown, Filter, Plus, MoreHorizontal,
-  UserPlus, RefreshCw, FileText, Megaphone, Users2, Edit, Trash2, Search
+  UserPlus, RefreshCw, FileText, Megaphone, Users2, Edit, Trash2, Search, Clock, RefreshCcw
 } from 'lucide-react';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend
+  PieChart, Pie, Cell, Legend, AreaChart, Area
 } from 'recharts';
 import { useAuth } from '../context/AuthContext';
 import { STATS as MOCK_STATS, CHART_DATA, KECAMATAN_LIST, AKTIVITAS, KEGIATAN } from '../mock/mockData';
@@ -18,15 +18,33 @@ import { Button } from '../components/ui/button';
 
 const ACT_ICONS = { simpatisan: UserPlus, kader: RefreshCw, saksi: FileText, target: TargetIcon, kegiatan: Megaphone };
 
+const formatDateTime = (iso) => {
+  if (!iso) return '-';
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString('id-ID', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }) + ' WIB';
+  } catch { return iso; }
+};
+
+const formatShortDate = (iso) => {
+  try { return new Date(iso).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' }); } catch { return iso; }
+};
+
 const Dashboard = () => {
   const { user } = useAuth();
   const [stats, setStats] = useState(null);
   const [simpatisanList, setSimpatisanList] = useState([]);
+  const [growth, setGrowth] = useState(null);
+  const [loadingGrowth, setLoadingGrowth] = useState(true);
 
-  useEffect(() => {
+  const loadAll = () => {
     statsApi.summary().then(r => setStats(r.data)).catch(() => setStats(null));
     simpatisanApi.list().then(r => setSimpatisanList(r.data)).catch(() => {});
-  }, []);
+    setLoadingGrowth(true);
+    statsApi.dailyGrowth(30).then(r => setGrowth(r.data)).catch(() => setGrowth(null)).finally(() => setLoadingGrowth(false));
+  };
+
+  useEffect(() => { loadAll(); }, []);
 
   // Merge real stats with fallback constants
   const s = {
@@ -57,6 +75,83 @@ const Dashboard = () => {
         <StatCard icon={TargetIcon} label="Baseline Suara" value={formatNumber(s.baseline)} sub="Estimasi suara awal (Baseline)" iconBg="bg-orange-50" iconColor="text-orange-500" />
         <StatCard icon={Flag} label="Target Suara" value={formatNumber(s.target)} sub="Target akhir pemenangan" iconBg="bg-red-50" iconColor="text-red-500" />
         <StatCard icon={TrendingUp} label="Realisasi Saat Ini" value={formatNumber(s.realisasi)} sub={`${s.targetPersen}% dari target`} iconBg="bg-emerald-50" iconColor="text-emerald-500" />
+      </div>
+
+      {/* Rekapan Harian 30 Hari Terakhir */}
+      <div className="bg-white rounded-2xl p-6 card-shadow">
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+          <div>
+            <h3 className="text-sm font-extrabold tracking-wide text-gray-900 uppercase">Rekapan Harian — 30 Hari Terakhir</h3>
+            <p className="text-xs text-gray-500 font-medium mt-1">Pertumbuhan Kader, Simpatisan, dan Saksi per hari</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-orange-50 border border-orange-100">
+              <Clock className="w-3.5 h-3.5 text-orange-600" />
+              <div className="text-[11px] font-semibold">
+                <span className="text-gray-500">Update terakhir:</span>{' '}
+                <span className="text-orange-700 font-bold">{formatDateTime(growth?.last_update?.latest)}</span>
+              </div>
+            </div>
+            <button onClick={loadAll} className="p-2 rounded-lg border border-gray-200 hover:border-orange-300 text-gray-500 hover:text-orange-600" title="Refresh">
+              <RefreshCcw className={`w-4 h-4 ${loadingGrowth ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
+        </div>
+
+        {/* Ringkasan tambahan 30 hari */}
+        <div className="grid grid-cols-4 gap-3 mb-5">
+          <div className="p-3 rounded-xl bg-blue-50 border border-blue-100">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-blue-700">Simpatisan Baru</p>
+            <p className="text-xl font-extrabold text-blue-800 mt-1">+ {formatNumber(growth?.totals?.simpatisan_baru_30h || 0)}</p>
+            <p className="text-[9px] font-semibold text-blue-600 mt-0.5">Update: {growth?.last_update?.simpatisan ? formatShortDate(growth.last_update.simpatisan) : '-'}</p>
+          </div>
+          <div className="p-3 rounded-xl bg-amber-50 border border-amber-100">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-amber-700">Kader Baru</p>
+            <p className="text-xl font-extrabold text-amber-800 mt-1">+ {formatNumber(growth?.totals?.kader_baru_30h || 0)}</p>
+            <p className="text-[9px] font-semibold text-amber-600 mt-0.5">Update: {growth?.last_update?.kader ? formatShortDate(growth.last_update.kader) : '-'}</p>
+          </div>
+          <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-100">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-emerald-700">Saksi Baru</p>
+            <p className="text-xl font-extrabold text-emerald-800 mt-1">+ {formatNumber(growth?.totals?.saksi_baru_30h || 0)}</p>
+            <p className="text-[9px] font-semibold text-emerald-600 mt-0.5">Update: {growth?.last_update?.saksi ? formatShortDate(growth.last_update.saksi) : '-'}</p>
+          </div>
+          <div className="p-3 rounded-xl bg-orange-50 border border-orange-100">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-orange-700">Total Semua</p>
+            <p className="text-xl font-extrabold text-orange-800 mt-1">+ {formatNumber((growth?.totals?.simpatisan_baru_30h || 0) + (growth?.totals?.kader_baru_30h || 0) + (growth?.totals?.saksi_baru_30h || 0))}</p>
+            <p className="text-[9px] font-semibold text-orange-600 mt-0.5">Dalam 30 hari</p>
+          </div>
+        </div>
+
+        <ResponsiveContainer width="100%" height={280}>
+          <AreaChart data={growth?.series || []}>
+            <defs>
+              <linearGradient id="gradSimpatisan" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.4}/>
+                <stop offset="95%" stopColor="#3B82F6" stopOpacity={0}/>
+              </linearGradient>
+              <linearGradient id="gradKader" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#F59E0B" stopOpacity={0.4}/>
+                <stop offset="95%" stopColor="#F59E0B" stopOpacity={0}/>
+              </linearGradient>
+              <linearGradient id="gradSaksi" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#10B981" stopOpacity={0.4}/>
+                <stop offset="95%" stopColor="#10B981" stopOpacity={0}/>
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" />
+            <XAxis dataKey="date" stroke="#9CA3AF" fontSize={10} tickFormatter={formatShortDate} />
+            <YAxis stroke="#9CA3AF" fontSize={11} allowDecimals={false} />
+            <Tooltip
+              labelFormatter={(v) => formatShortDate(v)}
+              formatter={(v, name) => [formatNumber(v), name === 'simpatisan' ? 'Simpatisan Baru' : name === 'kader' ? 'Kader Baru' : name === 'saksi' ? 'Saksi Baru' : name]}
+              contentStyle={{ borderRadius: 8, border: '1px solid #FED7AA' }}
+            />
+            <Legend wrapperStyle={{ fontSize: 12, fontWeight: 600 }} />
+            <Area type="monotone" dataKey="simpatisan" name="Simpatisan" stroke="#3B82F6" strokeWidth={2.5} fill="url(#gradSimpatisan)" />
+            <Area type="monotone" dataKey="kader" name="Kader" stroke="#F59E0B" strokeWidth={2.5} fill="url(#gradKader)" />
+            <Area type="monotone" dataKey="saksi" name="Saksi" stroke="#10B981" strokeWidth={2.5} fill="url(#gradSaksi)" />
+          </AreaChart>
+        </ResponsiveContainer>
       </div>
 
       {/* Charts row */}

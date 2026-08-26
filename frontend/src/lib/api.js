@@ -70,6 +70,7 @@ export const statsApi = {
   kecamatanDetail: () => api.get('/stats/kecamatan-detail'),
   desaDetail: () => api.get('/stats/desa-detail'),
   rwDetail: () => api.get('/stats/rw-detail'),
+  dailyGrowth: (days = 30) => api.get('/stats/daily-growth', { params: { days } }),
 };
 
 export const excelApi = {
