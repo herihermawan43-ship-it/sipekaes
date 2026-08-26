@@ -1,4 +1,7 @@
-"""Seed database with demo users and initial data."""
+"""Seed database with demo users, kader, simpatisan, saksi, and wilayah targets.
+
+Data DPC/DPRA/Pelopor/RKI di-embed sebagai keanggotaan pada Kader (single source of truth).
+"""
 import asyncio
 import os
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -12,96 +15,118 @@ load_dotenv(Path(__file__).parent / '.env')
 client = AsyncIOMotorClient(os.environ['MONGO_URL'])
 db = client[os.environ['DB_NAME']]
 
+# Password default untuk semua demo user: password sesuai username
 DEMO_USERS = [
-    {'username': 'superadmin', 'name': 'Heri Setiawan', 'role': 'super_admin', 'roleLabel': 'Super Admin', 'avatar': 'https://images.unsplash.com/photo-1560250097-0b93528c311a?w=200&h=200&fit=crop'},
-    {'username': 'adminpusat', 'name': 'Budi Santoso', 'role': 'admin_pusat', 'roleLabel': 'Admin Pusat', 'avatar': 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop'},
-    {'username': 'admininput', 'name': 'Siti Aminah', 'role': 'admin_input', 'roleLabel': 'Admin Input', 'avatar': 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop'},
-    {'username': 'koordinator', 'name': 'Agus Rahman', 'role': 'koordinator', 'roleLabel': 'Koordinator', 'avatar': 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&h=200&fit=crop'},
-    {'username': 'saksi', 'name': 'Dewi Lestari', 'role': 'saksi', 'roleLabel': 'Saksi TPS', 'avatar': 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200&h=200&fit=crop'},
+    {'username': 'superadmin', 'password': 'SiPekaeS@2025', 'name': 'Heri Setiawan', 'role': 'super_admin', 'roleLabel': 'Super Admin',
+     'avatar': 'https://images.unsplash.com/photo-1560250097-0b93528c311a?w=200&h=200&fit=crop',
+     'kecamatan_kerja': '', 'desa_kerja': '', 'tps_kerja': ''},
+    {'username': 'adminpusat', 'password': 'admin123', 'name': 'Budi Santoso', 'role': 'admin_pusat', 'roleLabel': 'Admin Pusat',
+     'avatar': 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop',
+     'kecamatan_kerja': '', 'desa_kerja': '', 'tps_kerja': ''},
+    {'username': 'admininput', 'password': 'admin123', 'name': 'Siti Aminah', 'role': 'admin_input', 'roleLabel': 'Admin Input',
+     'avatar': 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop',
+     'kecamatan_kerja': '', 'desa_kerja': '', 'tps_kerja': ''},
+    {'username': 'koordinator', 'password': 'admin123', 'name': 'Agus Rahman', 'role': 'koordinator', 'roleLabel': 'Koordinator Kec. Cikembar',
+     'avatar': 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&h=200&fit=crop',
+     'kecamatan_kerja': 'Cikembar', 'desa_kerja': '', 'tps_kerja': ''},
+    {'username': 'saksi', 'password': 'admin123', 'name': 'Dewi Lestari', 'role': 'saksi', 'roleLabel': 'Saksi TPS 01 Cikembar',
+     'avatar': 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200&h=200&fit=crop',
+     'kecamatan_kerja': 'Cikembar', 'desa_kerja': 'Mekarjaya', 'tps_kerja': 'TPS 01'},
 ]
 
 SIMPATISAN_SEED = [
-    {'nama': 'Budi Santoso', 'nik': '3202011234560001', 'hp': '0812-2345-1234', 'kecamatan': 'Cikembar', 'desa': 'Mekarjaya', 'rw': 'RW 04', 'rt': 'RT 02', 'alamat': 'Jl. Merdeka No. 12', 'status': 'aktif'},
-    {'nama': 'Siti Aminah', 'nik': '3202011234560002', 'hp': '0812-3456-5678', 'kecamatan': 'Cisaat', 'desa': 'Sukamaju', 'rw': 'RW 02', 'rt': 'RT 01', 'alamat': 'Jl. Raya Cisaat 45', 'status': 'aktif'},
-    {'nama': 'Agus Rahman', 'nik': '3202011234560003', 'hp': '0812-4567-9011', 'kecamatan': 'Palabuhanratu', 'desa': 'Citarik', 'rw': 'RW 01', 'rt': 'RT 03', 'alamat': 'Jl. Pelabuhan No. 88', 'status': 'aktif'},
-    {'nama': 'Dewi Lestari', 'nik': '3202011234560004', 'hp': '0812-5678-1121', 'kecamatan': 'Parungkuda', 'desa': 'Sundawenang', 'rw': 'RW 03', 'rt': 'RT 04', 'alamat': 'Kp. Bojong RT 04', 'status': 'aktif'},
-    {'nama': 'Rudi Hermawan', 'nik': '3202011234560005', 'hp': '0812-6789-3141', 'kecamatan': 'Cibadak', 'desa': 'Karangtengah', 'rw': 'RW 06', 'rt': 'RT 02', 'alamat': 'Jl. Raya Cibadak 210', 'status': 'aktif'},
-    {'nama': 'Yuni Kartika', 'nik': '3202011234560006', 'hp': '0813-1122-3344', 'kecamatan': 'Sukaraja', 'desa': 'Selaawi', 'rw': 'RW 02', 'rt': 'RT 05', 'alamat': 'Jl. Sukaraja 12', 'status': 'aktif'},
-    {'nama': 'Rina Wulandari', 'nik': '3202011234560007', 'hp': '0813-2233-4455', 'kecamatan': 'Cikembar', 'desa': 'Bojongkembar', 'rw': 'RW 05', 'rt': 'RT 01', 'alamat': 'Kp. Cikembar 45', 'status': 'menunggu'},
-    {'nama': 'Ahmad Fauzi', 'nik': '3202011234560008', 'hp': '0813-3344-5566', 'kecamatan': 'Nagrak', 'desa': 'Cisarua', 'rw': 'RW 07', 'rt': 'RT 03', 'alamat': 'Jl. Nagrak Utara', 'status': 'aktif'},
-    {'nama': 'Sri Handayani', 'nik': '3202011234560009', 'hp': '0813-4455-6677', 'kecamatan': 'Cisaat', 'desa': 'Selajambe', 'rw': 'RW 04', 'rt': 'RT 02', 'alamat': 'Jl. Selajambe No. 3', 'status': 'aktif'},
-    {'nama': 'Andi Pratama', 'nik': '3202011234560010', 'hp': '0813-5566-7788', 'kecamatan': 'Kadudampit', 'desa': 'Muaradua', 'rw': 'RW 01', 'rt': 'RT 04', 'alamat': 'Kp. Muaradua', 'status': 'aktif'},
+    {'nama': 'Budi Santoso', 'nik': '3202011234560001', 'hp': '081223451234', 'kecamatan': 'Cikembar', 'desa': 'Mekarjaya', 'rw': 'RW 04', 'rt': 'RT 02', 'alamat': 'Jl. Merdeka No. 12'},
+    {'nama': 'Siti Aminah', 'nik': '3202011234560002', 'hp': '081234565678', 'kecamatan': 'Cisaat', 'desa': 'Sukamaju', 'rw': 'RW 02', 'rt': 'RT 01', 'alamat': 'Jl. Raya Cisaat 45'},
+    {'nama': 'Agus Rahman', 'nik': '3202011234560003', 'hp': '081245679011', 'kecamatan': 'Palabuhanratu', 'desa': 'Citarik', 'rw': 'RW 01', 'rt': 'RT 03', 'alamat': 'Jl. Pelabuhan No. 88'},
+    {'nama': 'Dewi Lestari', 'nik': '3202011234560004', 'hp': '081256781121', 'kecamatan': 'Parungkuda', 'desa': 'Sundawenang', 'rw': 'RW 03', 'rt': 'RT 04', 'alamat': 'Kp. Bojong RT 04'},
+    {'nama': 'Rudi Hermawan', 'nik': '3202011234560005', 'hp': '081267893141', 'kecamatan': 'Cibadak', 'desa': 'Karangtengah', 'rw': 'RW 06', 'rt': 'RT 02', 'alamat': 'Jl. Raya Cibadak 210'},
+    {'nama': 'Yuni Kartika', 'nik': '3202011234560006', 'hp': '081311223344', 'kecamatan': 'Sukaraja', 'desa': 'Selaawi', 'rw': 'RW 02', 'rt': 'RT 05', 'alamat': 'Jl. Sukaraja 12'},
+    # sekaligus Pengurus DPRA
+    {'nama': 'Deden Supriatna', 'nik': '3202011234560020', 'hp': '081320001004', 'kecamatan': 'Cibadak', 'desa': 'Karangtengah', 'rw': 'RW 06', 'rt': 'RT 03', 'alamat': 'Cibadak Utara 22',
+     'is_pengurus_dpra': True, 'jabatan_dpra': 'Anggota'},
+    {'nama': 'Popon Suryati', 'nik': '3202011234560021', 'hp': '081320001005', 'kecamatan': 'Nagrak', 'desa': 'Cisarua', 'rw': 'RW 07', 'rt': 'RT 02', 'alamat': 'Nagrak Barat 11',
+     'is_pengurus_dpra': True, 'jabatan_dpra': 'Anggota'},
+    # sekaligus Anggota Pelopor
+    {'nama': 'Wulandari S.', 'nik': '3202011234560030', 'hp': '081430002002', 'kecamatan': 'Cisaat', 'desa': 'Sukamaju', 'rw': 'RW 02', 'rt': 'RT 04', 'alamat': 'Sukamaju 5',
+     'is_pelopor': True, 'peran_pelopor': 'Anggota'},
 ]
 
 KADER_SEED = [
-    {'nama': 'H. Ahmad Rifai', 'jabatan': 'Ketua DPC', 'kecamatan': 'Palabuhanratu', 'desa': 'Citarik', 'rw': 'RW 01', 'hp': '0812-1111-2222'},
-    {'nama': 'Hj. Nur Aisyah', 'jabatan': 'Sekretaris', 'kecamatan': 'Cisaat', 'desa': 'Sukamaju', 'rw': 'RW 02', 'hp': '0812-2222-3333'},
-    {'nama': 'H. Sutrisno', 'jabatan': 'Bendahara', 'kecamatan': 'Cikembar', 'desa': 'Mekarjaya', 'rw': 'RW 03', 'hp': '0812-3333-4444'},
-    {'nama': 'Drs. Bambang W.', 'jabatan': 'Koordinator Kecamatan', 'kecamatan': 'Sukaraja', 'desa': 'Selaawi', 'rw': 'RW 04', 'hp': '0812-4444-5555'},
-    {'nama': 'Hj. Fatimah', 'jabatan': 'Koordinator Desa', 'kecamatan': 'Nagrak', 'desa': 'Cisarua', 'rw': 'RW 05', 'hp': '0812-5555-6666'},
-    {'nama': 'M. Yusuf, S.E.', 'jabatan': 'Koordinator RW', 'kecamatan': 'Parungkuda', 'desa': 'Sundawenang', 'rw': 'RW 06', 'hp': '0812-6666-7777'},
-    {'nama': 'Iwan Kurniawan', 'jabatan': 'Koordinator RW', 'kecamatan': 'Cibadak', 'desa': 'Karangtengah', 'rw': 'RW 07', 'hp': '0812-7777-8888'},
-    {'nama': 'Hj. Rohati', 'jabatan': 'Kader Perempuan', 'kecamatan': 'Cisaat', 'desa': 'Selajambe', 'rw': 'RW 08', 'hp': '0812-8888-9999'},
+    {'nama': 'H. Ahmad Rifai, S.H.', 'jabatan': 'Ketua DPC', 'kecamatan': 'Palabuhanratu', 'desa': 'Citarik', 'rw': 'RW 01', 'hp': '081211111001', 'alamat': 'Palabuhanratu',
+     'is_pengurus_dpc': True, 'jabatan_dpc': 'Ketua DPC'},
+    {'nama': 'Hj. Nur Aisyah, M.Pd.', 'jabatan': 'Sekretaris DPC', 'kecamatan': 'Cisaat', 'desa': 'Sukamaju', 'rw': 'RW 02', 'hp': '081211111002', 'alamat': 'Cisaat',
+     'is_pengurus_dpc': True, 'jabatan_dpc': 'Sekretaris'},
+    {'nama': 'H. Sutrisno, S.E.', 'jabatan': 'Bendahara DPC', 'kecamatan': 'Cikembar', 'desa': 'Mekarjaya', 'rw': 'RW 03', 'hp': '081211111003', 'alamat': 'Cikembar',
+     'is_pengurus_dpc': True, 'jabatan_dpc': 'Bendahara'},
+    {'nama': 'Drs. Bambang W.', 'jabatan': 'Kaderisasi', 'kecamatan': 'Sukaraja', 'desa': 'Selaawi', 'rw': 'RW 04', 'hp': '081211111004', 'alamat': 'Sukaraja',
+     'is_pengurus_dpc': True, 'jabatan_dpc': 'Kaderisasi'},
+    {'nama': 'Iwan Kurniawan', 'jabatan': 'Humas', 'kecamatan': 'Cibadak', 'desa': 'Karangtengah', 'rw': 'RW 07', 'hp': '081211111005', 'alamat': 'Cibadak',
+     'is_pengurus_dpc': True, 'jabatan_dpc': 'Humas'},
+    # Pengurus DPRA
+    {'nama': 'Ust. Zaenal Abidin', 'jabatan': 'Ketua DPRA Cikembar', 'kecamatan': 'Cikembar', 'desa': 'Mekarjaya', 'rw': 'RW 04', 'hp': '081320001001', 'alamat': 'Mekarjaya',
+     'is_pengurus_dpra': True, 'jabatan_dpra': 'Ketua DPRA'},
+    {'nama': 'Rusman Efendi', 'jabatan': 'Sekretaris DPRA Cisaat', 'kecamatan': 'Cisaat', 'desa': 'Sukamaju', 'rw': 'RW 02', 'hp': '081320001002', 'alamat': 'Sukamaju',
+     'is_pengurus_dpra': True, 'jabatan_dpra': 'Sekretaris'},
+    # Pelopor + Kader
+    {'nama': 'Aditya Nugraha', 'jabatan': 'Koordinator Kecamatan', 'kecamatan': 'Cikembar', 'desa': 'Mekarjaya', 'rw': 'RW 05', 'hp': '081430002001', 'alamat': 'Mekarjaya',
+     'is_pelopor': True, 'peran_pelopor': 'Koordinator'},
+    # RKI + Kader
+    {'nama': 'H. Slamet Riyadi', 'jabatan': 'Kader Aktif', 'kecamatan': 'Cikembar', 'desa': 'Mekarjaya', 'rw': 'RW 04', 'hp': '081540003001', 'alamat': 'Mekarjaya',
+     'is_rki': True, 'jabatan_rki': 'Ketua RKI'},
+    {'nama': 'Rian Firmansyah', 'jabatan': 'Kader Aktif', 'kecamatan': 'Cisaat', 'desa': 'Sukamaju', 'rw': 'RW 03', 'hp': '081540003002', 'alamat': 'Sukamaju',
+     'is_rki': True, 'jabatan_rki': 'Sekretaris'},
 ]
 
 SAKSI_SEED = [
-    {'nama': 'Dedi Kurnia', 'tps': 'TPS 01', 'kecamatan': 'Cikembar', 'desa': 'Mekarjaya', 'rw': 'RW 04', 'hp': '0813-1010-2020', 'status': 'terverifikasi'},
-    {'nama': 'Wati Susanti', 'tps': 'TPS 05', 'kecamatan': 'Cisaat', 'desa': 'Sukamaju', 'rw': 'RW 02', 'hp': '0813-2020-3030', 'status': 'terverifikasi'},
-    {'nama': 'Hendra Wijaya', 'tps': 'TPS 12', 'kecamatan': 'Palabuhanratu', 'desa': 'Citarik', 'rw': 'RW 01', 'hp': '0813-3030-4040', 'status': 'terverifikasi'},
-    {'nama': 'Lilis Suryani', 'tps': 'TPS 08', 'kecamatan': 'Parungkuda', 'desa': 'Sundawenang', 'rw': 'RW 03', 'hp': '0813-4040-5050', 'status': 'pending'},
-    {'nama': 'Rahmat Hidayat', 'tps': 'TPS 03', 'kecamatan': 'Cibadak', 'desa': 'Karangtengah', 'rw': 'RW 06', 'hp': '0813-5050-6060', 'status': 'terverifikasi'},
-    {'nama': 'Nining Suciati', 'tps': 'TPS 15', 'kecamatan': 'Sukaraja', 'desa': 'Selaawi', 'rw': 'RW 02', 'hp': '0813-6060-7070', 'status': 'terverifikasi'},
+    {'nama': 'Dedi Kurnia', 'tps': 'TPS 01', 'kecamatan': 'Cikembar', 'desa': 'Mekarjaya', 'rw': 'RW 04', 'hp': '081310102020', 'status': 'terverifikasi'},
+    {'nama': 'Wati Susanti', 'tps': 'TPS 05', 'kecamatan': 'Cisaat', 'desa': 'Sukamaju', 'rw': 'RW 02', 'hp': '081320203030', 'status': 'terverifikasi'},
+    {'nama': 'Hendra Wijaya', 'tps': 'TPS 12', 'kecamatan': 'Palabuhanratu', 'desa': 'Citarik', 'rw': 'RW 01', 'hp': '081330304040', 'status': 'terverifikasi'},
+    {'nama': 'Lilis Suryani', 'tps': 'TPS 08', 'kecamatan': 'Parungkuda', 'desa': 'Sundawenang', 'rw': 'RW 03', 'hp': '081340405050', 'status': 'pending'},
+    {'nama': 'Rahmat Hidayat', 'tps': 'TPS 03', 'kecamatan': 'Cibadak', 'desa': 'Karangtengah', 'rw': 'RW 06', 'hp': '081350506060', 'status': 'terverifikasi'},
+    # Saksi + Anggota Pelopor + RKI
+    {'nama': 'Ridwan Kurnia', 'tps': 'TPS 22', 'kecamatan': 'Palabuhanratu', 'desa': 'Citarik', 'rw': 'RW 05', 'hp': '081430002003', 'status': 'terverifikasi',
+     'is_pelopor': True, 'peran_pelopor': 'Anggota'},
 ]
 
-DPC_SEED = [
-    {'nama': 'H. Ahmad Rifai, S.H.', 'jabatan': 'Ketua DPC', 'hp': '0812-1111-1001', 'alamat': 'Palabuhanratu'},
-    {'nama': 'Hj. Nur Aisyah, M.Pd.', 'jabatan': 'Sekretaris', 'hp': '0812-1111-1002', 'alamat': 'Cisaat'},
-    {'nama': 'H. Sutrisno, S.E.', 'jabatan': 'Bendahara', 'hp': '0812-1111-1003', 'alamat': 'Cikembar'},
-    {'nama': 'Drs. Bambang W.', 'jabatan': 'Kaderisasi', 'hp': '0812-1111-1004', 'alamat': 'Sukaraja'},
-    {'nama': 'Iwan Kurniawan', 'jabatan': 'Humas', 'hp': '0812-1111-1005', 'alamat': 'Cibadak'},
-    {'nama': 'M. Yusuf, S.E.', 'jabatan': 'Litbang', 'hp': '0812-1111-1006', 'alamat': 'Parungkuda'},
-    {'nama': 'Hj. Rohati', 'jabatan': 'Bidang Perempuan', 'hp': '0812-1111-1007', 'alamat': 'Cisaat'},
-    {'nama': 'Iwan Setiawan', 'jabatan': 'Bidang Pemuda', 'hp': '0812-1111-1008', 'alamat': 'Nagrak'},
-]
-
-DPRA_SEED = [
-    {'nama': 'Ust. Zaenal Abidin', 'jabatan': 'Ketua DPRA', 'kecamatan': 'Cikembar', 'desa': 'Mekarjaya', 'hp': '0813-2000-1001', 'kategori': 'kader'},
-    {'nama': 'Rusman Efendi', 'jabatan': 'Sekretaris', 'kecamatan': 'Cisaat', 'desa': 'Sukamaju', 'hp': '0813-2000-1002', 'kategori': 'kader'},
-    {'nama': 'Nunung Aisyah', 'jabatan': 'Bendahara', 'kecamatan': 'Palabuhanratu', 'desa': 'Citarik', 'hp': '0813-2000-1003', 'kategori': 'kader'},
-    {'nama': 'Deden Supriatna', 'jabatan': 'Anggota', 'kecamatan': 'Cibadak', 'desa': 'Karangtengah', 'hp': '0813-2000-1004', 'kategori': 'simpatisan'},
-    {'nama': 'Popon Suryati', 'jabatan': 'Anggota', 'kecamatan': 'Nagrak', 'desa': 'Cisarua', 'hp': '0813-2000-1005', 'kategori': 'simpatisan'},
-]
-
-PELOPOR_SEED = [
-    {'nama': 'Aditya Nugraha', 'kecamatan': 'Cikembar', 'desa': 'Mekarjaya', 'hp': '0814-3000-2001', 'peran': 'Koordinator'},
-    {'nama': 'Wulandari S.', 'kecamatan': 'Cisaat', 'desa': 'Sukamaju', 'hp': '0814-3000-2002', 'peran': 'Anggota'},
-    {'nama': 'Ridwan Kurnia', 'kecamatan': 'Palabuhanratu', 'desa': 'Citarik', 'hp': '0814-3000-2003', 'peran': 'Anggota'},
-    {'nama': 'Yuli Astuti', 'kecamatan': 'Parungkuda', 'desa': 'Sundawenang', 'hp': '0814-3000-2004', 'peran': 'Anggota'},
-]
-
-RKI_SEED = [
-    {'nama': 'H. Slamet Riyadi', 'jabatan': 'Ketua RKI', 'kecamatan': 'Cikembar', 'desa': 'Mekarjaya', 'hp': '0815-4000-3001'},
-    {'nama': 'Rian Firmansyah', 'jabatan': 'Sekretaris', 'kecamatan': 'Cisaat', 'desa': 'Sukamaju', 'hp': '0815-4000-3002'},
-    {'nama': 'Ade Sudrajat', 'jabatan': 'Anggota', 'kecamatan': 'Palabuhanratu', 'desa': 'Citarik', 'hp': '0815-4000-3003'},
-    {'nama': 'Ela Nurlela', 'jabatan': 'Anggota', 'kecamatan': 'Nagrak', 'desa': 'Cisarua', 'hp': '0815-4000-3004'},
+WILAYAH_TARGET_SEED = [
+    {'kecamatan': 'Cikembar', 'baseline': 35000, 'target': 70000, 'realisasi': 48230},
+    {'kecamatan': 'Cisaat', 'baseline': 60000, 'target': 125000, 'realisasi': 82400},
+    {'kecamatan': 'Palabuhanratu', 'baseline': 80000, 'target': 160000, 'realisasi': 108600},
+    {'kecamatan': 'Parungkuda', 'baseline': 45000, 'target': 90000, 'realisasi': 56300},
+    {'kecamatan': 'Cibadak', 'baseline': 40000, 'target': 80000, 'realisasi': 49200},
+    {'kecamatan': 'Sukaraja', 'baseline': 38000, 'target': 76000, 'realisasi': 45800},
+    {'kecamatan': 'Sukalarang', 'baseline': 32000, 'target': 64000, 'realisasi': 39600},
+    {'kecamatan': 'Kadudampit', 'baseline': 28000, 'target': 56000, 'realisasi': 34000},
+    {'kecamatan': 'Cicantayan', 'baseline': 30000, 'target': 60000, 'realisasi': 37200},
+    {'kecamatan': 'Nagrak', 'baseline': 42000, 'target': 84000, 'realisasi': 51600},
+    {'kecamatan': 'Kalapanunggal', 'baseline': 25000, 'target': 50000, 'realisasi': 30500},
+    {'kecamatan': 'Cikakak', 'baseline': 22000, 'target': 44000, 'realisasi': 27200},
+    {'kecamatan': 'Bantargadung', 'baseline': 20000, 'target': 40000, 'realisasi': 24800},
+    {'kecamatan': 'Jampangkulon', 'baseline': 27000, 'target': 54000, 'realisasi': 32900},
+    {'kecamatan': 'Surade', 'baseline': 31000, 'target': 62000, 'realisasi': 38400},
 ]
 
 async def seed():
-    # USERS
     await db.users.delete_many({})
     for u in DEMO_USERS:
-        doc = {**u, 'id': uid(), 'hashed_password': hash_password('admin123'), 'created_at': datetime.utcnow()}
-        await db.users.insert_one(doc)
+        pw = u.pop('password')
+        await db.users.insert_one({**u, 'id': uid(), 'hashed_password': hash_password(pw), 'created_at': datetime.utcnow()})
     print(f"Seeded {len(DEMO_USERS)} users")
 
-    for coll, data in [
-        ('simpatisan', SIMPATISAN_SEED), ('kader', KADER_SEED), ('saksi', SAKSI_SEED),
-        ('pengurus_dpc', DPC_SEED), ('pengurus_dpra', DPRA_SEED), ('pelopor', PELOPOR_SEED), ('rki', RKI_SEED),
-    ]:
+    for coll, data in [('simpatisan', SIMPATISAN_SEED), ('kader', KADER_SEED), ('saksi', SAKSI_SEED)]:
         await db[coll].delete_many({})
         for item in data:
             await db[coll].insert_one({**item, 'id': uid(), 'tanggal': datetime.utcnow()})
         print(f"Seeded {len(data)} {coll}")
+
+    # legacy collections cleanup
+    for legacy in ('pengurus_dpc', 'pengurus_dpra', 'pelopor', 'rki'):
+        await db[legacy].delete_many({})
+
+    await db.wilayah_target.delete_many({})
+    for w in WILAYAH_TARGET_SEED:
+        await db.wilayah_target.insert_one({**w, 'id': uid(), 'updated_at': datetime.utcnow()})
+    print(f"Seeded {len(WILAYAH_TARGET_SEED)} wilayah_target")
 
     print("Done!")
 

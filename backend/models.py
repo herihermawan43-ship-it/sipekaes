@@ -13,6 +13,9 @@ class UserBase(BaseModel):
     role: str  # super_admin, admin_pusat, admin_input, koordinator, saksi
     roleLabel: Optional[str] = None
     avatar: Optional[str] = None
+    kecamatan_kerja: Optional[str] = ""
+    desa_kerja: Optional[str] = ""
+    tps_kerja: Optional[str] = ""
 
 class UserCreate(UserBase):
     password: str
@@ -34,6 +37,18 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
     user: UserOut
 
+# ============ Keanggotaan (embed dalam entitas) ============
+class Keanggotaan(BaseModel):
+    """Flag keanggotaan struktur organisasi - embedded di Simpatisan/Kader/Saksi."""
+    is_pengurus_dpc: bool = False
+    jabatan_dpc: Optional[str] = ""
+    is_pengurus_dpra: bool = False
+    jabatan_dpra: Optional[str] = ""
+    is_pelopor: bool = False
+    peran_pelopor: Optional[str] = ""
+    is_rki: bool = False
+    jabatan_rki: Optional[str] = ""
+
 # ============ SIMPATISAN ============
 class SimpatisanBase(BaseModel):
     nama: str
@@ -45,6 +60,15 @@ class SimpatisanBase(BaseModel):
     rt: Optional[str] = ""
     alamat: Optional[str] = ""
     status: str = "aktif"
+    # embedded keanggotaan
+    is_pengurus_dpc: bool = False
+    jabatan_dpc: Optional[str] = ""
+    is_pengurus_dpra: bool = False
+    jabatan_dpra: Optional[str] = ""
+    is_pelopor: bool = False
+    peran_pelopor: Optional[str] = ""
+    is_rki: bool = False
+    jabatan_rki: Optional[str] = ""
 
 class Simpatisan(SimpatisanBase):
     id: str = Field(default_factory=uid)
@@ -59,6 +83,15 @@ class KaderBase(BaseModel):
     rw: Optional[str] = ""
     hp: Optional[str] = ""
     alamat: Optional[str] = ""
+    # embedded keanggotaan
+    is_pengurus_dpc: bool = False
+    jabatan_dpc: Optional[str] = ""
+    is_pengurus_dpra: bool = False
+    jabatan_dpra: Optional[str] = ""
+    is_pelopor: bool = False
+    peran_pelopor: Optional[str] = ""
+    is_rki: bool = False
+    jabatan_rki: Optional[str] = ""
 
 class Kader(KaderBase):
     id: str = Field(default_factory=uid)
@@ -72,57 +105,29 @@ class SaksiBase(BaseModel):
     desa: Optional[str] = ""
     rw: Optional[str] = ""
     hp: Optional[str] = ""
-    status: str = "pending"  # pending / terverifikasi
+    alamat: Optional[str] = ""
+    status: str = "pending"
+    # embedded keanggotaan
+    is_pengurus_dpc: bool = False
+    jabatan_dpc: Optional[str] = ""
+    is_pengurus_dpra: bool = False
+    jabatan_dpra: Optional[str] = ""
+    is_pelopor: bool = False
+    peran_pelopor: Optional[str] = ""
+    is_rki: bool = False
+    jabatan_rki: Optional[str] = ""
 
 class Saksi(SaksiBase):
     id: str = Field(default_factory=uid)
     tanggal: datetime = Field(default_factory=datetime.utcnow)
 
-# ============ PENGURUS DPC ============
-class PengurusDPCBase(BaseModel):
-    nama: str
-    jabatan: str  # Ketua, Sekretaris, Bendahara, Kaderisasi, Humas, dll
-    hp: Optional[str] = ""
-    alamat: Optional[str] = ""
-    foto: Optional[str] = ""
-
-class PengurusDPC(PengurusDPCBase):
-    id: str = Field(default_factory=uid)
-    tanggal: datetime = Field(default_factory=datetime.utcnow)
-
-# ============ PENGURUS DPRA ============
-class PengurusDPRABase(BaseModel):
-    nama: str
-    jabatan: str
+# ============ WILAYAH TARGET (baseline/target per kecamatan) ============
+class WilayahTargetBase(BaseModel):
     kecamatan: str
-    desa: str
-    hp: Optional[str] = ""
-    kategori: str = "kader"  # kader / simpatisan
+    baseline: int = 0
+    target: int = 0
+    realisasi: int = 0
 
-class PengurusDPRA(PengurusDPRABase):
+class WilayahTarget(WilayahTargetBase):
     id: str = Field(default_factory=uid)
-    tanggal: datetime = Field(default_factory=datetime.utcnow)
-
-# ============ ANGGOTA PELOPOR ============
-class PeloporBase(BaseModel):
-    nama: str
-    kecamatan: str
-    desa: Optional[str] = ""
-    hp: Optional[str] = ""
-    peran: Optional[str] = "Anggota"
-
-class Pelopor(PeloporBase):
-    id: str = Field(default_factory=uid)
-    tanggal: datetime = Field(default_factory=datetime.utcnow)
-
-# ============ ANGGOTA RKI ============
-class RKIBase(BaseModel):
-    nama: str
-    jabatan: Optional[str] = "Anggota"
-    kecamatan: str
-    desa: Optional[str] = ""
-    hp: Optional[str] = ""
-
-class RKI(RKIBase):
-    id: str = Field(default_factory=uid)
-    tanggal: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)

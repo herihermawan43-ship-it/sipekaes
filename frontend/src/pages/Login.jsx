@@ -1,19 +1,11 @@
 import React, { useState } from 'react';
 import { useNavigate, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Eye, EyeOff, Sparkles, Shield, Users, UserCheck, ShieldCheck, MapPin } from 'lucide-react';
+import { Eye, EyeOff, Sparkles, ShieldCheck, KeyRound, Info } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { useToast } from '../hooks/use-toast';
-
-const demoAccounts = [
-  { role: 'Super Admin', username: 'superadmin', icon: Shield, color: 'from-orange-500 to-orange-600' },
-  { role: 'Admin Pusat', username: 'adminpusat', icon: Users, color: 'from-amber-500 to-orange-500' },
-  { role: 'Admin Input', username: 'admininput', icon: UserCheck, color: 'from-orange-400 to-amber-500' },
-  { role: 'Koordinator', username: 'koordinator', icon: MapPin, color: 'from-orange-500 to-red-500' },
-  { role: 'Saksi TPS', username: 'saksi', icon: ShieldCheck, color: 'from-amber-400 to-orange-400' },
-];
 
 const Login = () => {
   const { user, login } = useAuth();
@@ -37,11 +29,6 @@ const Login = () => {
       toast({ title: 'Login gagal', description: result.message, variant: 'destructive' });
     }
     setLoading(false);
-  };
-
-  const quickLogin = (uname) => {
-    setUsername(uname);
-    setPassword('admin123');
   };
 
   return (
@@ -112,6 +99,7 @@ const Login = () => {
                 onChange={e => setUsername(e.target.value)}
                 placeholder="Masukkan username"
                 className="h-12 rounded-xl border-gray-200 font-medium"
+                autoComplete="username"
                 required
               />
             </div>
@@ -124,6 +112,7 @@ const Login = () => {
                   onChange={e => setPassword(e.target.value)}
                   placeholder="Masukkan password"
                   className="h-12 rounded-xl border-gray-200 font-medium pr-11"
+                  autoComplete="current-password"
                   required
                 />
                 <button type="button" onClick={() => setShow(!show)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
@@ -137,29 +126,29 @@ const Login = () => {
             </Button>
           </form>
 
-          <div className="mt-8">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="h-px flex-1 bg-gray-200"></div>
-              <span className="text-xs font-semibold text-gray-400 tracking-wider">LOGIN CEPAT DEMO</span>
-              <div className="h-px flex-1 bg-gray-200"></div>
+          {/* Super Admin credential info */}
+          <div className="mt-8 p-4 rounded-2xl bg-gradient-to-br from-orange-50 to-amber-50 border border-orange-200">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-8 h-8 rounded-lg bg-orange-500 flex items-center justify-center">
+                <ShieldCheck className="w-4 h-4 text-white" />
+              </div>
+              <p className="font-extrabold text-sm text-orange-900">Akses Super Admin</p>
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              {demoAccounts.map(acc => {
-                const Icon = acc.icon;
-                return (
-                  <button
-                    key={acc.username}
-                    onClick={() => quickLogin(acc.username)}
-                    className={`p-3 rounded-xl bg-gradient-to-br ${acc.color} text-white text-left hover:opacity-90 transition-opacity`}
-                  >
-                    <Icon className="w-5 h-5 mb-1" />
-                    <p className="text-xs font-bold">{acc.role}</p>
-                    <p className="text-[10px] opacity-90 font-medium">{acc.username}</p>
-                  </button>
-                );
-              })}
+            <div className="space-y-1 pl-10">
+              <div className="flex items-center gap-2 text-xs">
+                <span className="font-semibold text-gray-600 w-16">Username</span>
+                <code className="bg-white px-2 py-0.5 rounded font-bold text-orange-700 text-xs">superadmin</code>
+              </div>
+              <div className="flex items-center gap-2 text-xs">
+                <KeyRound className="w-3 h-3 text-gray-400" />
+                <span className="font-semibold text-gray-600 w-16 -ml-5">Password</span>
+                <code className="bg-white px-2 py-0.5 rounded font-bold text-orange-700 text-xs">SiPekaeS@2025</code>
+              </div>
             </div>
-            <p className="text-center text-xs text-gray-400 mt-4 font-medium">Password semua demo: <span className="font-bold text-gray-600">admin123</span></p>
+            <p className="text-[10px] text-orange-700 font-semibold mt-3 flex items-start gap-1">
+              <Info className="w-3 h-3 mt-0.5 flex-shrink-0" />
+              Segera ubah password di menu Pengaturan setelah login pertama.
+            </p>
           </div>
         </div>
       </div>

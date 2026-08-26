@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ShieldCheck, Plus, Search, Filter, Edit, Trash2, MapPin } from 'lucide-react';
+import { ShieldCheck, Plus, Search, Filter, Edit, Trash2, MapPin, Eye, MessageCircle } from 'lucide-react';
 import { Input } from '../components/ui/input';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
@@ -7,27 +7,38 @@ import { useEntity } from '../hooks/useEntity';
 import { saksiApi } from '../lib/api';
 import EntityFormDialog from '../components/EntityFormDialog';
 import ConfirmDialog from '../components/ConfirmDialog';
+import DetailModal from '../components/DetailModal';
 import { KECAMATAN_LIST } from '../mock/mockData';
+import { KEANGGOTAAN_FIELDS } from '../lib/keanggotaanFields';
+import { useAuth } from '../context/AuthContext';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow
 } from '../components/ui/table';
 
 const FIELDS = [
+  { type: 'section', label: 'Data Diri' },
   { name: 'nama', label: 'Nama Saksi', required: true },
   { name: 'tps', label: 'No. TPS', required: true, placeholder: 'TPS 01' },
   { name: 'kecamatan', label: 'Kecamatan', required: true, type: 'select', options: KECAMATAN_LIST.map(k => ({value: k.name, label: k.name})) },
   { name: 'desa', label: 'Desa / Kelurahan' },
   { name: 'rw', label: 'RW', placeholder: 'RW 01' },
   { name: 'hp', label: 'No. HP' },
+  { name: 'alamat', label: 'Alamat', full: true },
   { name: 'status', label: 'Status', type: 'select', options: [{value:'pending',label:'Pending'},{value:'terverifikasi',label:'Terverifikasi'}] },
+  ...KEANGGOTAAN_FIELDS,
 ];
 
+const normalizeWa = (hp) => { if (!hp) return ''; let s = String(hp).replace(/\D/g,''); if (s.startsWith('0')) s = '62' + s.slice(1); else if (!s.startsWith('62')) s = '62' + s; return s; };
+
 const Saksi = () => {
+  const { user } = useAuth();
+  const canWrite = ['super_admin','admin_pusat','admin_input','koordinator'].includes(user?.role);
   const { items, loading, create, update, remove } = useEntity(saksiApi, 'Saksi');
   const [search, setSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editData, setEditData] = useState(null);
   const [confirmDel, setConfirmDel] = useState(null);
+  const [detail, setDetail] = useState(null);
 
   const filtered = items.filter(s => s.nama?.toLowerCase().includes(search.toLowerCase()));
 
@@ -59,7 +70,7 @@ const Saksi = () => {
               <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Cari saksi..." className="pl-9 h-10 w-64" />
             </div>
             <Button variant="outline" className="h-10 gap-2"><Filter className="w-4 h-4" /> Filter</Button>
-            <Button onClick={() => { setEditData(null); setDialogOpen(true); }} className="h-10 bg-orange-500 hover:bg-orange-600 gap-2 font-bold"><Plus className="w-4 h-4" /> Tambah Saksi</Button>
+            {canWrite && <Button onClick={() => { setEditData(null); setDialogOpen(true); }} className="h-10 bg-orange-500 hover:bg-orange-600 gap-2 font-bold"><Plus className="w-4 h-4" /> Tambah Saksi</Button>}
           </div>
         </div>
 
@@ -82,7 +93,7 @@ const Saksi = () => {
               <TableRow><TableCell colSpan={7} className="text-center py-8 text-gray-400 font-semibold">Tidak ada data</TableCell></TableRow>
             ) : filtered.map(s => (
               <TableRow key={s.id} className="hover:bg-orange-50/30">
-                <TableCell className="font-bold">{s.nama}</TableCell>
+                <TableCell><button onClick={() => setDetail(s)} className="font-bold text-left hover:text-orange-600 hover:underline">{s.nama}</button></TableCell>
                 <TableCell><span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-orange-100 text-orange-700 text-xs font-bold"><MapPin className="w-3 h-3" /> {s.tps}</span></TableCell>
                 <TableCell className="font-semibold">{s.kecamatan}</TableCell>
                 <TableCell className="font-medium">{s.desa || '-'}</TableCell>
@@ -94,8 +105,10 @@ const Saksi = () => {
                 </TableCell>
                 <TableCell>
                   <div className="flex gap-1">
-                    <button onClick={() => { setEditData(s); setDialogOpen(true); }} className="p-1.5 rounded-lg hover:bg-orange-50 text-gray-500 hover:text-orange-600"><Edit className="w-4 h-4" /></button>
-                    <button onClick={() => setConfirmDel(s)} className="p-1.5 rounded-lg hover:bg-red-50 text-gray-500 hover:text-red-600"><Trash2 className="w-4 h-4" /></button>
+                    <button onClick={() => setDetail(s)} className="p-1.5 rounded-lg hover:bg-orange-50 text-gray-500 hover:text-orange-600"><Eye className="w-4 h-4" /></button>
+                    {s.hp && <a href={`https://wa.me/${normalizeWa(s.hp)}`} target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-lg hover:bg-emerald-50 text-gray-500 hover:text-emerald-600"><MessageCircle className="w-4 h-4" /></a>}
+                    {canWrite && <button onClick={() => { setEditData(s); setDialogOpen(true); }} className="p-1.5 rounded-lg hover:bg-orange-50 text-gray-500 hover:text-orange-600"><Edit className="w-4 h-4" /></button>}
+                    {canWrite && <button onClick={() => setConfirmDel(s)} className="p-1.5 rounded-lg hover:bg-red-50 text-gray-500 hover:text-red-600"><Trash2 className="w-4 h-4" /></button>}
                   </div>
                 </TableCell>
               </TableRow>
@@ -106,12 +119,14 @@ const Saksi = () => {
 
       <EntityFormDialog open={dialogOpen} onOpenChange={setDialogOpen}
         title={editData ? 'Edit Saksi' : 'Tambah Saksi'} fields={FIELDS} initialData={editData}
+        description="Data otomatis tersinkron ke DPC/DPRA/Pelopor/RKI jika dicentang."
         onSubmit={async (d) => editData ? await update(editData.id, d) : await create(d)}
       />
       <ConfirmDialog open={!!confirmDel} onOpenChange={(o) => !o && setConfirmDel(null)}
         title="Hapus Saksi?" description={`"${confirmDel?.nama}" akan dihapus.`}
         onConfirm={async () => { await remove(confirmDel.id); }}
       />
+      <DetailModal open={!!detail} onOpenChange={(o) => !o && setDetail(null)} data={detail} entityLabel="Saksi TPS" />
     </div>
   );
 };

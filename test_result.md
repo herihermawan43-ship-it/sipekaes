@@ -167,6 +167,96 @@ backend:
         agent: "testing"
         comment: "✅ EXCEL TESTS PASSED (2/2). GET /api/simpatisan/template/excel returns valid xlsx file (starts with PK, parseable by openpyxl) with headers: nama, nik, hp, kecamatan, desa, rw, rt, alamat. POST /api/simpatisan/import/excel with test xlsx (3 rows) successfully inserted 3 records, returned {inserted:3, errors:[]}."
 
+  - task: "Superadmin password update"
+    implemented: true
+    working: true
+    file: "/app/backend/seed.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Updated superadmin password from 'admin123' to 'SiPekaeS@2025' in seed.py. Old password should no longer work."
+      - working: true
+        agent: "testing"
+        comment: "✅ PASSWORD UPDATE VERIFIED (3/3 tests). Login with NEW password 'SiPekaeS@2025' returns 200 with JWT token and user.role=super_admin. Login with OLD password 'admin123' correctly returns 401. Password change implemented correctly."
+
+  - task: "Role-based area filtering (koordinator/saksi)"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Implemented get_area_filter() function that filters data based on user role. Koordinator sees only their kecamatan_kerja. Saksi sees only their kecamatan_kerja + tps_kerja. Applied to all CRUD endpoints."
+      - working: true
+        agent: "testing"
+        comment: "✅ ROLE-BASED FILTERING VERIFIED (6/6 tests). Koordinator (kecamatan_kerja='Cikembar') GET /api/simpatisan returns only items with kecamatan='Cikembar'. Saksi (kecamatan_kerja='Cikembar', tps_kerja='TPS 01') GET /api/saksi returns only items with kecamatan='Cikembar' AND tps='TPS 01'. Area filtering working correctly for both roles."
+
+  - task: "Organisasi aggregation endpoints (DPC/DPRA/Pelopor/RKI)"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Implemented GET /api/organisasi/{jenis} endpoint that aggregates people from simpatisan+kader+saksi collections based on organizational role flags (is_pengurus_dpc, is_pengurus_dpra, is_pelopor, is_rki). Returns unified list with source_type, source_label, jabatan_organisasi fields."
+      - working: true
+        agent: "testing"
+        comment: "✅ ORGANISASI AGGREGATION VERIFIED (10/10 tests). GET /api/organisasi/dpc returns list with source_type, source_label, jabatan_organisasi fields. GET /api/organisasi/dpra, /pelopor, /rki all return non-empty lists. GET /api/organisasi/xyz correctly returns 404. All endpoints working correctly with proper field mapping."
+
+  - task: "Wilayah Target CRUD"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Implemented full CRUD for wilayah_target collection. GET lists all, POST creates/upserts by kecamatan, PUT updates by id, DELETE removes by id. Seeded 15 kecamatan with baseline/target/realisasi data."
+      - working: true
+        agent: "testing"
+        comment: "✅ WILAYAH TARGET CRUD VERIFIED (9/9 tests). GET /api/wilayah-target returns 15 seeded items with baseline/target/realisasi fields. POST creates new item with id. POST with same kecamatan correctly updates (upsert) without creating duplicate. PUT updates by id. DELETE returns {ok:true}. All CRUD operations working correctly."
+
+  - task: "Stats summary with organizational counts and wilayah aggregation"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Enhanced GET /api/stats/summary to include pengurus_dpc, pengurus_dpra, pelopor, rki counts (aggregated from all 3 collections). Added baseline, target, realisasi totals aggregated from wilayah_target collection."
+      - working: true
+        agent: "testing"
+        comment: "✅ ENHANCED STATS VERIFIED (4/4 tests). GET /api/stats/summary returns pengurus_dpc, pengurus_dpra, pelopor, rki counts (all > 0 from seeded data). Returns baseline, target, realisasi aggregated from wilayah_target collection. All new fields present and correctly calculated."
+
+  - task: "Simpatisan with keanggotaan flags"
+    implemented: true
+    working: true
+    file: "/app/backend/models.py, /app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Added keanggotaan flags (is_pengurus_dpc, jabatan_dpc, is_pengurus_dpra, jabatan_dpra, is_pelopor, peran_pelopor, is_rki, jabatan_rki) to Simpatisan/Kader/Saksi models. These flags enable people to be members of multiple organizational structures."
+      - working: true
+        agent: "testing"
+        comment: "✅ KEANGGOTAAN FLAGS VERIFIED (3/3 tests). POST /api/simpatisan with is_pengurus_dpc=True, jabatan_dpc='Ketua' creates item with keanggotaan fields. GET /api/organisasi/dpc correctly includes newly created simpatisan. Keanggotaan flags working correctly across all endpoints."
+
 frontend:
   - task: "Login page + Dashboard + all pages"
     implemented: true
@@ -183,7 +273,7 @@ frontend:
 metadata:
   created_by: "main_agent"
   version: "1.0"
-  test_sequence: 2
+  test_sequence: 3
   run_ui: false
 
 test_plan:
@@ -237,3 +327,47 @@ agent_communication:
          - POST /api/simpatisan/import/excel → successfully imported 3 test rows
       
       Backend is production-ready. All endpoints working correctly with proper authentication and data validation.
+  - agent: "testing"
+    message: |
+      ✅ NEW/UPDATED ENDPOINTS TESTING COMPLETE - ALL TESTS PASSED (35/35)
+      
+      Tested all NEW/UPDATED backend endpoints as requested:
+      
+      1. ✅ Superadmin Password Update (3/3 tests passed)
+         - Login with NEW password 'SiPekaeS@2025' → 200 with JWT token
+         - Login with OLD password 'admin123' → 401 (correctly rejected)
+         - Password change implemented correctly
+      
+      2. ✅ Role-based Area Filtering (6/6 tests passed)
+         - Koordinator (kecamatan_kerja='Cikembar') → GET /api/simpatisan returns only Cikembar items
+         - Saksi (kecamatan_kerja='Cikembar', tps_kerja='TPS 01') → GET /api/saksi returns only Cikembar + TPS 01 items
+         - Area filtering working correctly for both roles
+      
+      3. ✅ Organisasi Aggregation (10/10 tests passed)
+         - GET /api/organisasi/dpc → returns list with source_type, source_label, jabatan_organisasi
+         - GET /api/organisasi/dpra → returns non-empty list
+         - GET /api/organisasi/pelopor → returns non-empty list
+         - GET /api/organisasi/rki → returns non-empty list
+         - GET /api/organisasi/xyz → correctly returns 404
+         - All endpoints working with proper field mapping
+      
+      4. ✅ Wilayah Target CRUD (9/9 tests passed)
+         - GET /api/wilayah-target → returns 15 seeded kecamatan with baseline/target/realisasi
+         - POST creates new item with id
+         - POST with same kecamatan → updates (upsert) without duplicate
+         - PUT updates by id
+         - DELETE returns {ok:true}
+         - All CRUD operations working correctly
+      
+      5. ✅ Enhanced Stats Summary (4/4 tests passed)
+         - GET /api/stats/summary → includes pengurus_dpc, pengurus_dpra, pelopor, rki counts
+         - Returns baseline, target, realisasi aggregated from wilayah_target
+         - All new fields present and correctly calculated
+      
+      6. ✅ Simpatisan with Keanggotaan Flags (3/3 tests passed)
+         - POST /api/simpatisan with is_pengurus_dpc=True, jabatan_dpc='Ketua' → creates with flags
+         - GET /api/organisasi/dpc → includes newly created simpatisan
+         - Keanggotaan flags working correctly across all endpoints
+      
+      🎉 ALL NEW/UPDATED BACKEND ENDPOINTS WORKING PERFECTLY!
+      Backend is ready for production. No issues found.

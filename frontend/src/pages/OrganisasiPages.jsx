@@ -1,43 +1,62 @@
-import React, { useState } from 'react';
-import { Plus, Search, Edit, Trash2, Users2, Crown, Building, GraduationCap, Phone, MapPin } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Search, Crown, Building, GraduationCap, Users2, Phone, MapPin, Eye, MessageCircle, Info, ExternalLink } from 'lucide-react';
 import { Input } from '../components/ui/input';
-import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
-import { useEntity } from '../hooks/useEntity';
-import { dpcApi, dpraApi, peloporApi, rkiApi } from '../lib/api';
-import EntityFormDialog from '../components/EntityFormDialog';
-import ConfirmDialog from '../components/ConfirmDialog';
-import { KECAMATAN_LIST } from '../mock/mockData';
+import { organisasiApi } from '../lib/api';
+import { toast } from '../hooks/use-toast';
+import DetailModal from '../components/DetailModal';
+import { Link } from 'react-router-dom';
 
-const KEC_OPTS = KECAMATAN_LIST.map(k => ({ value: k.name, label: k.name }));
+const SOURCE_ROUTE = { simpatisan: '/simpatisan', kader: '/kader', saksi: '/saksi' };
+const SOURCE_COLOR = { simpatisan: 'bg-blue-100 text-blue-700', kader: 'bg-orange-100 text-orange-700', saksi: 'bg-purple-100 text-purple-700' };
 
-// ============ Reusable card page ============
-const CardListPage = ({ api, entityLabel, fields, iconGradient = 'from-orange-400 to-orange-600', renderMeta, headerIcon: Icon }) => {
-  const { items, loading, create, update, remove } = useEntity(api, entityLabel);
+const normalizeWa = (hp) => { if (!hp) return ''; let s = String(hp).replace(/\D/g,''); if (s.startsWith('0')) s = '62' + s.slice(1); else if (!s.startsWith('62')) s = '62' + s; return s; };
+
+const AggregatedOrgPage = ({ jenis, entityLabel, iconGradient, headerIcon: Icon, description }) => {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editData, setEditData] = useState(null);
-  const [confirmDel, setConfirmDel] = useState(null);
+  const [detail, setDetail] = useState(null);
+
+  useEffect(() => {
+    setLoading(true);
+    organisasiApi.list(jenis)
+      .then(r => setItems(r.data))
+      .catch(e => toast({ title: 'Gagal memuat data', description: e.message, variant: 'destructive' }))
+      .finally(() => setLoading(false));
+  }, [jenis]);
 
   const filtered = items.filter(k =>
     (k.nama || '').toLowerCase().includes(search.toLowerCase()) ||
-    (k.jabatan || '').toLowerCase().includes(search.toLowerCase()) ||
+    (k.jabatan_organisasi || '').toLowerCase().includes(search.toLowerCase()) ||
     (k.kecamatan || '').toLowerCase().includes(search.toLowerCase())
   );
 
+  const stats = [
+    { l: `Total ${entityLabel}`, v: items.length },
+    { l: 'Dari Kader', v: items.filter(i => i.source_type === 'kader').length },
+    { l: 'Dari Simpatisan', v: items.filter(i => i.source_type === 'simpatisan').length },
+    { l: 'Dari Saksi', v: items.filter(i => i.source_type === 'saksi').length },
+  ];
+
   return (
     <div className="space-y-6">
+      {/* Info banner */}
+      <div className="bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-2xl p-4 flex items-start gap-3">
+        <Info className="w-5 h-5 text-orange-600 flex-shrink-0 mt-0.5" />
+        <div>
+          <p className="font-bold text-sm text-orange-900">{description}</p>
+          <p className="text-xs text-orange-800 font-medium mt-1">
+            Data disini adalah <b>view agregat</b> dari Simpatisan/Kader/Saksi yang dicentang sebagai {entityLabel}.
+            Untuk tambah/ubah data, buka halaman Simpatisan/Kader/Saksi dan centang "Termasuk {entityLabel}" pada form.
+          </p>
+        </div>
+      </div>
+
       <div className="grid grid-cols-4 gap-4">
-        {[
-          { l: `Total ${entityLabel}`, v: items.length },
-          { l: 'Kecamatan Aktif', v: new Set(items.map(i => i.kecamatan).filter(Boolean)).size },
-          { l: 'Jabatan Unik', v: new Set(items.map(i => i.jabatan || i.peran).filter(Boolean)).size },
-          { l: 'Ditambah Bulan Ini', v: items.filter(i => new Date(i.tanggal) > new Date(Date.now() - 30*24*3600*1000)).length },
-        ].map(s => (
+        {stats.map(s => (
           <div key={s.l} className="bg-white rounded-2xl p-5 card-shadow card-hover">
-            <div className="w-11 h-11 rounded-xl bg-orange-50 flex items-center justify-center mb-3">
-              <Icon className="w-5 h-5 text-orange-600" />
-            </div>
+            <div className="w-11 h-11 rounded-xl bg-orange-50 flex items-center justify-center mb-3"><Icon className="w-5 h-5 text-orange-600" /></div>
             <p className="text-sm font-semibold text-gray-500">{s.l}</p>
             <h3 className="text-2xl font-extrabold text-gray-900 mt-1">{s.v}</h3>
           </div>
@@ -47,45 +66,44 @@ const CardListPage = ({ api, entityLabel, fields, iconGradient = 'from-orange-40
       <div className="bg-white rounded-2xl p-6 card-shadow">
         <div className="flex items-center justify-between mb-5 gap-4 flex-wrap">
           <h3 className="text-lg font-extrabold">Daftar {entityLabel}</h3>
-          <div className="flex gap-2">
-            <div className="relative">
-              <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <Input value={search} onChange={e => setSearch(e.target.value)} placeholder={`Cari ${entityLabel.toLowerCase()}...`} className="pl-9 h-10 w-64" />
-            </div>
-            <Button onClick={() => { setEditData(null); setDialogOpen(true); }} className="h-10 bg-orange-500 hover:bg-orange-600 gap-2 font-bold">
-              <Plus className="w-4 h-4" /> Tambah {entityLabel}
-            </Button>
+          <div className="relative">
+            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <Input value={search} onChange={e => setSearch(e.target.value)} placeholder={`Cari ${entityLabel.toLowerCase()}...`} className="pl-9 h-10 w-64" />
           </div>
         </div>
 
         {loading ? (
           <div className="text-center py-12 text-gray-400 font-semibold">Memuat data...</div>
         ) : filtered.length === 0 ? (
-          <div className="text-center py-12 text-gray-400 font-semibold">Belum ada data. Klik "Tambah {entityLabel}" untuk memulai.</div>
+          <div className="text-center py-12 text-gray-400 font-semibold">
+            Belum ada {entityLabel}. Centang "Termasuk {entityLabel}" saat menambah Simpatisan/Kader/Saksi.
+          </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {filtered.map(k => (
-              <div key={k.id} className="border border-gray-100 rounded-2xl p-4 hover:border-orange-300 card-hover">
+              <div key={`${k.source_type}-${k.id}`} className="border border-gray-100 rounded-2xl p-4 hover:border-orange-300 card-hover">
                 <div className="flex items-start gap-3">
                   <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${iconGradient} flex items-center justify-center text-white font-extrabold text-lg`}>
                     {k.nama?.split(' ')[0]?.charAt(0)}{k.nama?.split(' ')[1]?.charAt(0) || ''}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-extrabold text-gray-900 truncate">{k.nama}</p>
-                    {(k.jabatan || k.peran) && <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-100 mt-1">{k.jabatan || k.peran}</Badge>}
+                    <button onClick={() => setDetail(k)} className="font-extrabold text-gray-900 truncate text-left hover:text-orange-600">{k.nama}</button>
+                    {k.jabatan_organisasi && <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-100 mt-1">{k.jabatan_organisasi}</Badge>}
                   </div>
                 </div>
                 <div className="mt-3 space-y-1 text-xs font-semibold text-gray-600">
-                  {renderMeta ? renderMeta(k) : (
-                    <>
-                      {k.kecamatan && <p className="flex items-center gap-1.5"><MapPin className="w-3 h-3 text-orange-500" />{k.kecamatan}{k.desa && `, ${k.desa}`}</p>}
-                      {k.hp && <p className="flex items-center gap-1.5"><Phone className="w-3 h-3 text-orange-500" />{k.hp}</p>}
-                    </>
-                  )}
+                  <p className="flex items-center gap-1.5"><MapPin className="w-3 h-3 text-orange-500" />{k.kecamatan}{k.desa && `, ${k.desa}`}</p>
+                  {k.hp && <p className="flex items-center gap-1.5"><Phone className="w-3 h-3 text-orange-500" />{k.hp}</p>}
+                  <p className="flex items-center gap-1.5 mt-2">
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold ${SOURCE_COLOR[k.source_type]}`}>
+                      <ExternalLink className="w-3 h-3" /> Sumber: {k.source_label}
+                    </span>
+                  </p>
                 </div>
                 <div className="flex gap-2 mt-3 pt-3 border-t border-gray-100">
-                  <button onClick={() => { setEditData(k); setDialogOpen(true); }} className="flex-1 py-1.5 text-xs font-bold text-orange-600 hover:bg-orange-50 rounded-lg flex items-center justify-center gap-1"><Edit className="w-3.5 h-3.5" /> Edit</button>
-                  <button onClick={() => setConfirmDel(k)} className="flex-1 py-1.5 text-xs font-bold text-red-600 hover:bg-red-50 rounded-lg flex items-center justify-center gap-1"><Trash2 className="w-3.5 h-3.5" /> Hapus</button>
+                  <button onClick={() => setDetail(k)} className="flex-1 py-1.5 text-xs font-bold text-gray-600 hover:bg-gray-50 rounded-lg flex items-center justify-center gap-1"><Eye className="w-3.5 h-3.5" /> Detail</button>
+                  {k.hp && <a href={`https://wa.me/${normalizeWa(k.hp)}`} target="_blank" rel="noopener noreferrer" className="flex-1 py-1.5 text-xs font-bold text-emerald-600 hover:bg-emerald-50 rounded-lg flex items-center justify-center gap-1"><MessageCircle className="w-3.5 h-3.5" /> WA</a>}
+                  <Link to={SOURCE_ROUTE[k.source_type]} className="flex-1 py-1.5 text-xs font-bold text-orange-600 hover:bg-orange-50 rounded-lg flex items-center justify-center gap-1"><ExternalLink className="w-3.5 h-3.5" /> Ke {k.source_label}</Link>
                 </div>
               </div>
             ))}
@@ -93,100 +111,24 @@ const CardListPage = ({ api, entityLabel, fields, iconGradient = 'from-orange-40
         )}
       </div>
 
-      <EntityFormDialog open={dialogOpen} onOpenChange={setDialogOpen}
-        title={editData ? `Edit ${entityLabel}` : `Tambah ${entityLabel}`}
-        fields={fields} initialData={editData}
-        onSubmit={async (d) => editData ? await update(editData.id, d) : await create(d)}
-      />
-      <ConfirmDialog open={!!confirmDel} onOpenChange={(o) => !o && setConfirmDel(null)}
-        title={`Hapus ${entityLabel}?`} description={`"${confirmDel?.nama}" akan dihapus.`}
-        onConfirm={async () => { await remove(confirmDel.id); }}
-      />
+      <DetailModal open={!!detail} onOpenChange={(o) => !o && setDetail(null)} data={detail} entityLabel={`${entityLabel} (${detail?.source_label || ''})`} />
     </div>
   );
 };
 
-// ============ PENGURUS DPC ============
 export const PengurusDPC = () => (
-  <CardListPage
-    api={dpcApi}
-    entityLabel="Pengurus DPC"
-    headerIcon={Crown}
-    iconGradient="from-orange-500 to-red-500"
-    fields={[
-      { name: 'nama', label: 'Nama Lengkap', required: true },
-      { name: 'jabatan', label: 'Jabatan', required: true, type: 'select', options: [
-        'Ketua DPC','Wakil Ketua','Sekretaris','Wakil Sekretaris','Bendahara','Wakil Bendahara',
-        'Kaderisasi','Humas','Litbang','Organisasi','Bidang Perempuan','Bidang Pemuda',
-        'Bidang Keagamaan','Bidang Ekonomi','Bidang Hukum'
-      ].map(v => ({value:v,label:v})) },
-      { name: 'hp', label: 'No. HP' },
-      { name: 'alamat', label: 'Alamat', full: true },
-    ]}
-  />
+  <AggregatedOrgPage jenis="dpc" entityLabel="Pengurus DPC" headerIcon={Crown} iconGradient="from-orange-500 to-red-500"
+    description="Pengurus Dewan Pimpinan Cabang (tingkat Kabupaten)" />
 );
-
-// ============ PENGURUS DPRA ============
 export const PengurusDPRA = () => (
-  <CardListPage
-    api={dpraApi}
-    entityLabel="Pengurus DPRA"
-    headerIcon={Building}
-    iconGradient="from-amber-400 to-orange-500"
-    fields={[
-      { name: 'nama', label: 'Nama Lengkap', required: true },
-      { name: 'jabatan', label: 'Jabatan', required: true, type: 'select', options: [
-        'Ketua DPRA','Sekretaris','Bendahara','Anggota','Koordinator','Humas'
-      ].map(v => ({value:v,label:v})) },
-      { name: 'kecamatan', label: 'Kecamatan', required: true, type: 'select', options: KEC_OPTS },
-      { name: 'desa', label: 'Desa / Kelurahan', required: true },
-      { name: 'hp', label: 'No. HP' },
-      { name: 'kategori', label: 'Kategori', type: 'select', options: [{value:'kader',label:'Kader'},{value:'simpatisan',label:'Simpatisan'}] },
-    ]}
-    renderMeta={(k) => (
-      <>
-        <p className="flex items-center gap-1.5"><MapPin className="w-3 h-3 text-orange-500" />{k.kecamatan}, {k.desa}</p>
-        {k.hp && <p className="flex items-center gap-1.5"><Phone className="w-3 h-3 text-orange-500" />{k.hp}</p>}
-        {k.kategori && <p className="text-[10px] font-bold uppercase tracking-wide text-orange-600 mt-1">Kategori: {k.kategori}</p>}
-      </>
-    )}
-  />
+  <AggregatedOrgPage jenis="dpra" entityLabel="Pengurus DPRA" headerIcon={Building} iconGradient="from-amber-400 to-orange-500"
+    description="Pengurus Dewan Pimpinan Ranting (tingkat Desa/Kelurahan)" />
 );
-
-// ============ PELOPOR ============
 export const AnggotaPelopor = () => (
-  <CardListPage
-    api={peloporApi}
-    entityLabel="Anggota Pelopor"
-    headerIcon={GraduationCap}
-    iconGradient="from-orange-400 to-amber-500"
-    fields={[
-      { name: 'nama', label: 'Nama Lengkap', required: true },
-      { name: 'peran', label: 'Peran', type: 'select', options: [
-        'Koordinator','Wakil Koordinator','Sekretaris','Anggota'
-      ].map(v => ({value:v,label:v})) },
-      { name: 'kecamatan', label: 'Kecamatan', required: true, type: 'select', options: KEC_OPTS },
-      { name: 'desa', label: 'Desa / Kelurahan' },
-      { name: 'hp', label: 'No. HP' },
-    ]}
-  />
+  <AggregatedOrgPage jenis="pelopor" entityLabel="Anggota Pelopor" headerIcon={GraduationCap} iconGradient="from-orange-400 to-amber-500"
+    description="Barisan Pelopor Pemenangan" />
 );
-
-// ============ RKI ============
 export const AnggotaRKI = () => (
-  <CardListPage
-    api={rkiApi}
-    entityLabel="Anggota RKI"
-    headerIcon={Users2}
-    iconGradient="from-red-400 to-orange-500"
-    fields={[
-      { name: 'nama', label: 'Nama Lengkap', required: true },
-      { name: 'jabatan', label: 'Jabatan', type: 'select', options: [
-        'Ketua RKI','Sekretaris','Bendahara','Anggota'
-      ].map(v => ({value:v,label:v})) },
-      { name: 'kecamatan', label: 'Kecamatan', required: true, type: 'select', options: KEC_OPTS },
-      { name: 'desa', label: 'Desa / Kelurahan' },
-      { name: 'hp', label: 'No. HP' },
-    ]}
-  />
+  <AggregatedOrgPage jenis="rki" entityLabel="Anggota RKI" headerIcon={Users2} iconGradient="from-red-400 to-orange-500"
+    description="Relawan Kader Independen" />
 );

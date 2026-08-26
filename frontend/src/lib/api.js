@@ -39,11 +39,18 @@ export const crud = (entity) => ({
 export const simpatisanApi = crud('simpatisan');
 export const kaderApi = crud('kader');
 export const saksiApi = crud('saksi');
-export const dpcApi = crud('pengurus-dpc');
-export const dpraApi = crud('pengurus-dpra');
-export const peloporApi = crud('pelopor');
-export const rkiApi = crud('rki');
 export const usersApi = { list: () => api.get('/users') };
+
+export const organisasiApi = {
+  list: (jenis) => api.get(`/organisasi/${jenis}`), // jenis: dpc|dpra|pelopor|rki
+};
+
+export const wilayahTargetApi = {
+  list: () => api.get('/wilayah-target'),
+  upsert: (data) => api.post('/wilayah-target', data),
+  update: (id, data) => api.put(`/wilayah-target/${id}`, data),
+};
+
 export const statsApi = {
   summary: () => api.get('/stats/summary'),
   perKecamatan: () => api.get('/stats/per-kecamatan'),

@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Plus, Search, Filter, Edit, Trash2, Eye, Download, Users, Upload, FileSpreadsheet, Loader2 } from 'lucide-react';
+import { Plus, Search, Filter, Edit, Trash2, Eye, Download, Users, Upload, FileSpreadsheet, Loader2, MessageCircle } from 'lucide-react';
 import { Input } from '../components/ui/input';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
@@ -8,12 +8,16 @@ import { simpatisanApi, excelApi } from '../lib/api';
 import { toast } from '../hooks/use-toast';
 import EntityFormDialog from '../components/EntityFormDialog';
 import ConfirmDialog from '../components/ConfirmDialog';
+import DetailModal from '../components/DetailModal';
 import { KECAMATAN_LIST } from '../mock/mockData';
+import { KEANGGOTAAN_FIELDS } from '../lib/keanggotaanFields';
+import { useAuth } from '../context/AuthContext';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow
 } from '../components/ui/table';
 
 const FIELDS = [
+  { type: 'section', label: 'Data Diri' },
   { name: 'nama', label: 'Nama Lengkap', required: true, placeholder: 'Nama sesuai KTP' },
   { name: 'nik', label: 'NIK', placeholder: '16 digit NIK' },
   { name: 'hp', label: 'No. HP', placeholder: '0812xxxx' },
@@ -22,14 +26,18 @@ const FIELDS = [
   { name: 'rw', label: 'RW', placeholder: 'RW 01' },
   { name: 'rt', label: 'RT', placeholder: 'RT 01' },
   { name: 'alamat', label: 'Alamat Lengkap', full: true, placeholder: 'Jl. ...' },
+  ...KEANGGOTAAN_FIELDS,
 ];
 
 const Simpatisan = () => {
+  const { user } = useAuth();
+  const canWrite = ['super_admin','admin_pusat','admin_input','koordinator'].includes(user?.role);
   const { items, loading, create, update, remove, load } = useEntity(simpatisanApi, 'Simpatisan');
   const [search, setSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editData, setEditData] = useState(null);
   const [confirmDel, setConfirmDel] = useState(null);
+  const [detail, setDetail] = useState(null);
   const [importing, setImporting] = useState(false);
   const fileRef = useRef();
 
@@ -53,8 +61,7 @@ const Simpatisan = () => {
       const url = window.URL.createObjectURL(new Blob([res.data]));
       const a = document.createElement('a');
       a.href = url; a.download = 'template_simpatisan.xlsx';
-      a.click();
-      window.URL.revokeObjectURL(url);
+      a.click(); window.URL.revokeObjectURL(url);
       toast({ title: 'Template terunduh' });
     } catch (e) {
       toast({ title: 'Gagal unduh template', variant: 'destructive' });
@@ -76,10 +83,7 @@ const Simpatisan = () => {
       await load();
     } catch (err) {
       toast({ title: 'Gagal import', description: err.response?.data?.detail || err.message, variant: 'destructive' });
-    } finally {
-      setImporting(false);
-      e.target.value = '';
-    }
+    } finally { setImporting(false); e.target.value = ''; }
   };
 
   const stats = [
@@ -88,6 +92,8 @@ const Simpatisan = () => {
     { l: 'Menunggu Verifikasi', v: items.filter(i => i.status !== 'aktif').length, c: 'text-amber-600', bg: 'bg-amber-50' },
     { l: 'Kecamatan Aktif', v: new Set(items.map(i => i.kecamatan)).size, c: 'text-blue-600', bg: 'bg-blue-50' },
   ];
+
+  const normalizeWa = (hp) => { if (!hp) return ''; let s = String(hp).replace(/\D/g,''); if (s.startsWith('0')) s = '62' + s.slice(1); else if (!s.startsWith('62')) s = '62' + s; return s; };
 
   return (
     <div className="space-y-6">
@@ -112,14 +118,16 @@ const Simpatisan = () => {
             </div>
             <Button variant="outline" className="h-10 gap-2 font-semibold"><Filter className="w-4 h-4" /> Filter</Button>
           </div>
-          <div className="flex gap-2">
-            <input ref={fileRef} type="file" accept=".xlsx,.xls" onChange={handleImport} className="hidden" />
-            <Button variant="outline" onClick={downloadTemplate} className="h-10 gap-2 font-semibold"><FileSpreadsheet className="w-4 h-4" /> Template</Button>
-            <Button variant="outline" onClick={() => fileRef.current?.click()} disabled={importing} className="h-10 gap-2 font-semibold">
-              {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />} Import Excel
-            </Button>
-            <Button onClick={openAdd} className="h-10 bg-orange-500 hover:bg-orange-600 gap-2 font-bold"><Plus className="w-4 h-4" /> Tambah Simpatisan</Button>
-          </div>
+          {canWrite && (
+            <div className="flex gap-2">
+              <input ref={fileRef} type="file" accept=".xlsx,.xls" onChange={handleImport} className="hidden" />
+              <Button variant="outline" onClick={downloadTemplate} className="h-10 gap-2 font-semibold"><FileSpreadsheet className="w-4 h-4" /> Template</Button>
+              <Button variant="outline" onClick={() => fileRef.current?.click()} disabled={importing} className="h-10 gap-2 font-semibold">
+                {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />} Import Excel
+              </Button>
+              <Button onClick={openAdd} className="h-10 bg-orange-500 hover:bg-orange-600 gap-2 font-bold"><Plus className="w-4 h-4" /> Tambah</Button>
+            </div>
+          )}
         </div>
 
         <div className="overflow-x-auto">
@@ -127,62 +135,76 @@ const Simpatisan = () => {
             <TableHeader>
               <TableRow className="bg-orange-50/50">
                 <TableHead className="font-extrabold text-gray-700">Nama</TableHead>
-                <TableHead className="font-extrabold text-gray-700">NIK</TableHead>
                 <TableHead className="font-extrabold text-gray-700">No. HP</TableHead>
                 <TableHead className="font-extrabold text-gray-700">Kecamatan</TableHead>
-                <TableHead className="font-extrabold text-gray-700">Desa/Kel</TableHead>
-                <TableHead className="font-extrabold text-gray-700">RW/RT</TableHead>
+                <TableHead className="font-extrabold text-gray-700">Desa/RW</TableHead>
+                <TableHead className="font-extrabold text-gray-700">Keanggotaan</TableHead>
                 <TableHead className="font-extrabold text-gray-700">Status</TableHead>
                 <TableHead className="font-extrabold text-gray-700">Aksi</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
-                <TableRow><TableCell colSpan={8} className="text-center py-8 text-gray-400 font-semibold">Memuat data...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center py-8 text-gray-400 font-semibold">Memuat data...</TableCell></TableRow>
               ) : filtered.length === 0 ? (
-                <TableRow><TableCell colSpan={8} className="text-center py-8 text-gray-400 font-semibold">Tidak ada data</TableCell></TableRow>
-              ) : filtered.map(s => (
-                <TableRow key={s.id} className="hover:bg-orange-50/30">
-                  <TableCell className="font-bold">{s.nama}</TableCell>
-                  <TableCell className="font-mono text-xs">{s.nik || '-'}</TableCell>
-                  <TableCell className="font-medium">{s.hp || '-'}</TableCell>
-                  <TableCell className="font-semibold">{s.kecamatan}</TableCell>
-                  <TableCell className="font-medium">{s.desa || '-'}</TableCell>
-                  <TableCell className="font-medium">{s.rw || '-'} / {s.rt || '-'}</TableCell>
-                  <TableCell>
-                    <Badge className={s.status === 'aktif' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : 'bg-amber-100 text-amber-700 hover:bg-amber-100'}>
-                      {s.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex gap-1">
-                      <button onClick={() => openEdit(s)} className="p-1.5 rounded-lg hover:bg-orange-50 text-gray-500 hover:text-orange-600"><Edit className="w-4 h-4" /></button>
-                      <button onClick={() => setConfirmDel(s)} className="p-1.5 rounded-lg hover:bg-red-50 text-gray-500 hover:text-red-600"><Trash2 className="w-4 h-4" /></button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
+                <TableRow><TableCell colSpan={7} className="text-center py-8 text-gray-400 font-semibold">Tidak ada data</TableCell></TableRow>
+              ) : filtered.map(s => {
+                const badges = [
+                  s.is_pengurus_dpc && 'DPC',
+                  s.is_pengurus_dpra && 'DPRA',
+                  s.is_pelopor && 'Pelopor',
+                  s.is_rki && 'RKI',
+                ].filter(Boolean);
+                return (
+                  <TableRow key={s.id} className="hover:bg-orange-50/30">
+                    <TableCell>
+                      <button onClick={() => setDetail(s)} className="font-bold text-left hover:text-orange-600 hover:underline">
+                        {s.nama}
+                      </button>
+                      {s.nik && <p className="text-[10px] font-mono text-gray-400">{s.nik}</p>}
+                    </TableCell>
+                    <TableCell className="font-medium">{s.hp || '-'}</TableCell>
+                    <TableCell className="font-semibold">{s.kecamatan}</TableCell>
+                    <TableCell className="font-medium text-xs">{s.desa || '-'}<br/><span className="text-gray-400">{s.rw || ''} {s.rt}</span></TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1">
+                        {badges.length === 0 ? <span className="text-xs text-gray-400 font-medium">-</span> :
+                          badges.map(b => <Badge key={b} className="bg-orange-100 text-orange-700 hover:bg-orange-100 text-[10px]">{b}</Badge>)}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge className={s.status === 'aktif' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : 'bg-amber-100 text-amber-700 hover:bg-amber-100'}>
+                        {s.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex gap-1">
+                        <button onClick={() => setDetail(s)} className="p-1.5 rounded-lg hover:bg-orange-50 text-gray-500 hover:text-orange-600" title="Detail"><Eye className="w-4 h-4" /></button>
+                        {s.hp && <a href={`https://wa.me/${normalizeWa(s.hp)}`} target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-lg hover:bg-emerald-50 text-gray-500 hover:text-emerald-600" title="WhatsApp"><MessageCircle className="w-4 h-4" /></a>}
+                        {canWrite && <button onClick={() => openEdit(s)} className="p-1.5 rounded-lg hover:bg-orange-50 text-gray-500 hover:text-orange-600"><Edit className="w-4 h-4" /></button>}
+                        {canWrite && <button onClick={() => setConfirmDel(s)} className="p-1.5 rounded-lg hover:bg-red-50 text-gray-500 hover:text-red-600"><Trash2 className="w-4 h-4" /></button>}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </div>
       </div>
 
       <EntityFormDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
+        open={dialogOpen} onOpenChange={setDialogOpen}
         title={editData ? 'Edit Simpatisan' : 'Tambah Simpatisan'}
-        description="Isi data simpatisan dengan lengkap"
-        fields={FIELDS}
-        initialData={editData}
+        description="Data akan otomatis tersinkron ke tab Pengurus DPC/DPRA/Pelopor/RKI jika dicentang."
+        fields={FIELDS} initialData={editData}
         onSubmit={handleSubmit}
       />
-      <ConfirmDialog
-        open={!!confirmDel}
-        onOpenChange={(o) => !o && setConfirmDel(null)}
-        title="Hapus Simpatisan?"
-        description={`Data "${confirmDel?.nama}" akan dihapus permanen.`}
+      <ConfirmDialog open={!!confirmDel} onOpenChange={(o) => !o && setConfirmDel(null)}
+        title="Hapus Simpatisan?" description={`Data "${confirmDel?.nama}" akan dihapus permanen.`}
         onConfirm={async () => { await remove(confirmDel.id); }}
       />
+      <DetailModal open={!!detail} onOpenChange={(o) => !o && setDetail(null)} data={detail} entityLabel="Simpatisan" />
     </div>
   );
 };
