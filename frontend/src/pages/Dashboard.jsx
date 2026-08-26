@@ -67,14 +67,14 @@ const Dashboard = () => {
   return (
     <div className="space-y-6">
       {/* Stats grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-4">
         <StatCard icon={Users} label="Simpatisan" value={formatNumber(s.simpatisan.value)} growth={s.simpatisan.growth} />
         <StatCard icon={UserCheck} label="Kader" value={formatNumber(s.kader.value)} growth={s.kader.growth} iconBg="bg-amber-50" iconColor="text-amber-600" />
         <StatCard icon={ShieldCheck} label="Saksi" value={formatNumber(s.saksi.value)} growth={s.saksi.growth} iconBg="bg-orange-50" iconColor="text-orange-600" />
         <StatCard icon={MapPin} label="Tim RW Tercover" value={formatNumber(s.rw.value)} sub={`dari ${formatNumber(s.rw.total)} RW`} iconBg="bg-amber-50" iconColor="text-amber-600" progress={Math.min(100, Math.round(s.rw.tercover))} />
-        <StatCard icon={TargetIcon} label="Baseline Suara" value={formatNumber(s.baseline)} sub="Estimasi suara awal (Baseline)" iconBg="bg-orange-50" iconColor="text-orange-500" />
-        <StatCard icon={Flag} label="Target Suara" value={formatNumber(s.target)} sub="Target akhir pemenangan" iconBg="bg-red-50" iconColor="text-red-500" />
-        <StatCard icon={TrendingUp} label="Realisasi Saat Ini" value={formatNumber(s.realisasi)} sub={`${s.targetPersen}% dari target`} iconBg="bg-emerald-50" iconColor="text-emerald-500" />
+        <StatCard icon={TargetIcon} label="Baseline Suara" value={formatNumber(s.baseline)} sub="Estimasi suara awal" iconBg="bg-orange-50" iconColor="text-orange-500" />
+        <StatCard icon={Flag} label="Target Suara" value={formatNumber(s.target)} sub="Target akhir" iconBg="bg-red-50" iconColor="text-red-500" />
+        <StatCard icon={TrendingUp} label="Realisasi" value={formatNumber(s.realisasi)} sub={`${s.targetPersen}% dari target`} iconBg="bg-emerald-50" iconColor="text-emerald-500" />
       </div>
 
       {/* Rekapan Harian 30 Hari Terakhir */}
@@ -99,7 +99,7 @@ const Dashboard = () => {
         </div>
 
         {/* Ringkasan tambahan 30 hari */}
-        <div className="grid grid-cols-4 gap-3 mb-5">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
           <div className="p-3 rounded-xl bg-blue-50 border border-blue-100">
             <p className="text-[10px] font-bold uppercase tracking-wide text-blue-700">Simpatisan Baru</p>
             <p className="text-xl font-extrabold text-blue-800 mt-1">+ {formatNumber(growth?.totals?.simpatisan_baru_30h || 0)}</p>
@@ -219,18 +219,18 @@ const Dashboard = () => {
       {/* Sebaran Jaringan + Aktivitas + Simpatisan */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <SectionCard title="SEBARAN JARINGAN - KABUPATEN SUKABUMI">
-          <div className="grid grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
             {[
               { l: 'Kecamatan', v: '47', p: '(100%)' },
-              { l: 'Desa / Kelurahan', v: '381', p: '(100%)' },
+              { l: 'Desa / Kel', v: '381', p: '(100%)' },
               { l: 'RW Total', v: '±3.000', p: '' },
               { l: 'RW Tercover', v: '2.340', p: '(78%)' },
-              { l: 'Coverage Wilayah', v: '78%', p: '' },
+              { l: 'Coverage', v: '78%', p: '' },
             ].map(s => (
               <div key={s.l} className="text-center p-3 rounded-xl bg-orange-50/50 border border-orange-100">
-                <p className="text-[10px] font-semibold text-gray-500 uppercase mb-2">{s.l}</p>
-                <p className="text-xl font-extrabold text-gray-900">{s.v}</p>
-                <p className="text-[10px] font-bold text-emerald-600 mt-1">{s.p}</p>
+                <p className="text-[10px] font-semibold text-gray-500 uppercase mb-2 truncate">{s.l}</p>
+                <p className="text-lg sm:text-xl font-extrabold text-gray-900 whitespace-nowrap">{s.v}</p>
+                {s.p && <p className="text-[10px] font-bold text-emerald-600 mt-1">{s.p}</p>}
               </div>
             ))}
           </div>

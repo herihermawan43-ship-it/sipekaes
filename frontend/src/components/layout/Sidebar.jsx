@@ -69,7 +69,7 @@ const menuSections = [
   },
 ];
 
-const Sidebar = ({ collapsed = false }) => {
+const Sidebar = ({ collapsed = false, onClose }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const role = user?.role;
@@ -77,6 +77,8 @@ const Sidebar = ({ collapsed = false }) => {
   const visibleSections = menuSections
     .map(section => ({ ...section, items: section.items.filter(it => !it.roles || it.roles.includes(role)) }))
     .filter(section => section.items.length > 0);
+
+  const handleNav = () => { if (onClose) onClose(); };
 
   return (
     <aside className={`${collapsed ? 'w-20' : 'w-64'} sidebar-gradient text-white flex flex-col h-screen sticky top-0 transition-all duration-300`}>
@@ -105,6 +107,7 @@ const Sidebar = ({ collapsed = false }) => {
                 <NavLink
                   key={item.to}
                   to={item.to}
+                  onClick={handleNav}
                   className={({ isActive }) =>
                     `flex items-center gap-3 px-6 py-2.5 text-sm font-semibold transition-all relative ${
                       isActive
