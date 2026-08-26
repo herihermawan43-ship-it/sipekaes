@@ -1,54 +1,79 @@
-import { useEffect } from "react";
-import "@/App.css";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import axios from "axios";
-import { HOME } from "@/constants/testIds";
+import React from 'react';
+import './App.css';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider } from './context/AuthContext';
+import { Toaster } from './components/ui/toaster';
+import ProtectedRoute from './components/ProtectedRoute';
+import DashboardLayout from './components/DashboardLayout';
+import Login from './pages/Login';
+import Dashboard from './pages/Dashboard';
+import Simpatisan from './pages/Simpatisan';
+import Kader from './pages/Kader';
+import Saksi from './pages/Saksi';
+import StrukturJaringan from './pages/StrukturJaringan';
+import { Kecamatan, Desa, RW, LaporanWilayah } from './pages/Wilayah';
+import SebaranPeta from './pages/SebaranPeta';
+import { Kegiatan, Agenda, Tugas } from './pages/Aktivitas';
+import { TargetSuara, ProgressSuara, BaselineSuara, QuickCount } from './pages/SuaraPages';
+import { Pengguna, Pengaturan } from './pages/UserSettings';
+import { useAuth } from './context/AuthContext';
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
-
-const Home = () => {
-  const helloWorldApi = async () => {
-    try {
-      const response = await axios.get(`${API}/`);
-      console.log(response.data.message);
-    } catch (e) {
-      console.error(e, `errored out requesting / api`);
-    }
-  };
-
-  useEffect(() => {
-    helloWorldApi();
-  }, []);
-
+const PageWrap = ({ title, subtitle, children }) => {
+  const { user } = useAuth();
+  const finalSub = subtitle || (user ? `Selamat datang, ${user.name}` : '');
   return (
-    <div>
-      <header className="App-header">
-        <a
-          data-testid={HOME.emergentLink}
-          className="App-link"
-          href="https://emergent.sh"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <img src="https://avatars.githubusercontent.com/in/1201222?s=120&u=2686cf91179bbafbc7a71bfbc43004cf9ae1acea&v=4" />
-        </a>
-        <p className="mt-5">Building something incredible ~!</p>
-      </header>
-    </div>
+    <DashboardLayout title={title} subtitle={finalSub}>
+      {children}
+    </DashboardLayout>
   );
 };
+
+const routes = [
+  { path: '/dashboard', title: 'Dashboard', subtitle: 'Pantau progress pemenangan di Kabupaten Sukabumi', el: <Dashboard /> },
+  { path: '/simpatisan', title: 'Simpatisan', subtitle: 'Kelola data simpatisan di seluruh wilayah', el: <Simpatisan /> },
+  { path: '/kader', title: 'Kader', subtitle: 'Data kader & pengurus organisasi', el: <Kader /> },
+  { path: '/saksi', title: 'Saksi TPS', subtitle: 'Data saksi Tempat Pemungutan Suara', el: <Saksi /> },
+  { path: '/struktur', title: 'Struktur Jaringan', subtitle: 'Hierarki organisasi pemenangan', el: <StrukturJaringan /> },
+  { path: '/kecamatan', title: 'Kecamatan', subtitle: '47 Kecamatan di Kabupaten Sukabumi', el: <Kecamatan /> },
+  { path: '/desa', title: 'Desa / Kelurahan', subtitle: '381 Desa/Kelurahan aktif', el: <Desa /> },
+  { path: '/rw', title: 'RW', subtitle: 'Sebaran RW di seluruh wilayah', el: <RW /> },
+  { path: '/peta', title: 'Sebaran Peta', subtitle: 'Peta interaktif kekuatan wilayah', el: <SebaranPeta /> },
+  { path: '/laporan', title: 'Laporan Wilayah', subtitle: 'Laporan aktivitas per wilayah', el: <LaporanWilayah /> },
+  { path: '/kegiatan', title: 'Kegiatan', subtitle: 'Aktivitas kampanye & aksi lapangan', el: <Kegiatan /> },
+  { path: '/agenda', title: 'Agenda', subtitle: 'Jadwal kegiatan yang akan datang', el: <Agenda /> },
+  { path: '/tugas', title: 'Tugas', subtitle: 'Daftar tugas & progress penyelesaian', el: <Tugas /> },
+  { path: '/target-suara', title: 'Target Suara', subtitle: 'Target perolehan suara per wilayah', el: <TargetSuara /> },
+  { path: '/progress-suara', title: 'Progress Suara', subtitle: 'Realisasi perolehan suara', el: <ProgressSuara /> },
+  { path: '/baseline-suara', title: 'Baseline Suara', subtitle: 'Estimasi suara awal per wilayah', el: <BaselineSuara /> },
+  { path: '/quick-count', title: 'Quick Count', subtitle: 'Hasil real-time perhitungan cepat', el: <QuickCount /> },
+  { path: '/pengguna', title: 'Pengguna', subtitle: 'Kelola akses pengguna sistem', el: <Pengguna /> },
+  { path: '/pengaturan', title: 'Pengaturan', subtitle: 'Konfigurasi sistem & profil', el: <Pengaturan /> },
+];
 
 function App() {
   return (
     <div className="App">
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Home />}>
-            <Route index element={<Home />} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
+      <AuthProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/login" element={<Login />} />
+            {routes.map(r => (
+              <Route
+                key={r.path}
+                path={r.path}
+                element={
+                  <ProtectedRoute>
+                    <PageWrap title={r.title} subtitle={r.subtitle}>{r.el}</PageWrap>
+                  </ProtectedRoute>
+                }
+              />
+            ))}
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          </Routes>
+          <Toaster />
+        </BrowserRouter>
+      </AuthProvider>
     </div>
   );
 }
