@@ -257,6 +257,21 @@ backend:
         agent: "testing"
         comment: "✅ KEANGGOTAAN FLAGS VERIFIED (3/3 tests). POST /api/simpatisan with is_pengurus_dpc=True, jabatan_dpc='Ketua' creates item with keanggotaan fields. GET /api/organisasi/dpc correctly includes newly created simpatisan. Keanggotaan flags working correctly across all endpoints."
 
+  - task: "New stats endpoints with dedup logic (kecamatan-detail, desa-detail, rw-detail)"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Implemented 3 new stats endpoints: GET /api/stats/kecamatan-detail (per-kecamatan with dedup), GET /api/stats/desa-detail (per-desa with RW list), GET /api/stats/rw-detail (per-RW). Dedup logic: Kader > Saksi > Simpatisan priority. Person with same NIK or nama+kecamatan counted only once."
+      - working: true
+        agent: "testing"
+        comment: "✅ ALL NEW STATS ENDPOINTS VERIFIED (25/25 tests). GET /api/stats/kecamatan-detail returns array with all required fields (kecamatan, kader, saksi, simpatisan, total_unik, dpc, dpra, pelopor, rki, baseline, target, realisasi). GET /api/stats/desa-detail returns array with kecamatan, desa, kader, saksi, simpatisan, total, rw_count, rws. GET /api/stats/rw-detail returns array with kecamatan, desa, rw, kader, saksi, simpatisan, total. CRITICAL DEDUP TEST PASSED: Created Kader and Saksi with same NIK (9999999999999999), verified person counted only ONCE in total_unik (dedup working correctly). All endpoints require auth (401 without token). All dedup formulas verified: kader + saksi + simpatisan == total_unik/total for all rows."
+
 frontend:
   - task: "Login page + Dashboard + all pages"
     implemented: true
@@ -273,7 +288,7 @@ frontend:
 metadata:
   created_by: "main_agent"
   version: "1.0"
-  test_sequence: 3
+  test_sequence: 4
   run_ui: false
 
 test_plan:
@@ -285,17 +300,16 @@ test_plan:
 agent_communication:
   - agent: "main"
     message: |
-      Backend built with FastAPI + MongoDB.
-      - Base URL uses /api prefix
-      - Login POST /api/auth/login with {username, password}. Demo users: superadmin/adminpusat/admininput/koordinator/saksi, password admin123
-      - All CRUD endpoints require Bearer token
-      - Please verify:
-        1. Login returns token+user for valid creds; 401 for invalid
-        2. /api/auth/me returns current user with token
-        3. GET/POST/PUT/DELETE for each entity (simpatisan, kader, saksi, pengurus-dpc, pengurus-dpra, pelopor, rki)
-        4. GET /api/stats/summary returns non-empty aggregation
-        5. GET /api/simpatisan/template/excel returns xlsx file
-        6. POST /api/simpatisan/import/excel with valid xlsx file inserts rows
+      Bug fixes applied — need testing:
+      1. **Map legend position**: Legend "Kekuatan Dukungan" was overlapping the map. Moved to horizontal below the map on both Sebaran Peta page (/peta) and Dashboard mini map. Verify legend is now BELOW map (not overlapping).
+      2. **New endpoint GET /api/stats/kecamatan-detail**: Returns per-kecamatan aggregated counts with DEDUP logic (Kader > Saksi > Simpatisan priority). Person counted once — if in Kader collection AND Saksi collection with same NIK OR nama+kecamatan, counted only as Kader.
+         - Test: superadmin token, GET /api/stats/kecamatan-detail → returns array with fields: kecamatan, kader, saksi, simpatisan, total_unik, dpc, dpra, pelopor, rki, baseline, target, realisasi
+      3. **New endpoint GET /api/stats/desa-detail**: Returns per-desa aggregation with rw_count field.
+         - Test: superadmin token, GET /api/stats/desa-detail → array with kecamatan, desa, kader, saksi, simpatisan, total, rw_count, rws fields
+      4. **New endpoint GET /api/stats/rw-detail**: Returns per-RW aggregation.
+         - Test: superadmin token, GET /api/stats/rw-detail → array with kecamatan, desa, rw, kader, saksi, simpatisan, total fields
+      5. **Dedup verification**: Create a Kader with nama="TestDup Person" nik="9999" kecamatan="Cikembar". Then create a Saksi with SAME nik. GET /stats/kecamatan-detail for Cikembar should show kader+=1, saksi should NOT increment for this person (dedup). Cleanup after.
+      All authenticated endpoints require Bearer token.
   - agent: "testing"
     message: |
       ✅ BACKEND TESTING COMPLETE - ALL TESTS PASSED (50/50)
@@ -371,3 +385,39 @@ agent_communication:
       
       🎉 ALL NEW/UPDATED BACKEND ENDPOINTS WORKING PERFECTLY!
       Backend is ready for production. No issues found.
+  - agent: "testing"
+    message: |
+      ✅ NEW STATS ENDPOINTS TESTING COMPLETE - ALL TESTS PASSED (25/25)
+      
+      Tested 3 NEW stats endpoints for SiPekaeS bug fix (dedup logic):
+      
+      1. ✅ GET /api/stats/kecamatan-detail (5/5 tests passed)
+         - Returns 200 with array of objects
+         - Each object has all required fields: kecamatan, kader, saksi, simpatisan, total_unik, dpc, dpra, pelopor, rki, baseline, target, realisasi
+         - DEDUP VERIFICATION PASSED: kader + saksi + simpatisan == total_unik for ALL rows
+      
+      2. ✅ GET /api/stats/desa-detail (6/6 tests passed)
+         - Returns 200 with array of objects
+         - Each object has all required fields: kecamatan, desa, kader, saksi, simpatisan, total, rw_count, rws
+         - DEDUP VERIFICATION PASSED: kader + saksi + simpatisan == total for ALL rows
+         - rws field is an array (verified)
+      
+      3. ✅ GET /api/stats/rw-detail (5/5 tests passed)
+         - Returns 200 with array of objects
+         - Each object has all required fields: kecamatan, desa, rw, kader, saksi, simpatisan, total
+         - DEDUP VERIFICATION PASSED: kader + saksi + simpatisan == total for ALL rows
+      
+      4. ✅ CRITICAL DEDUP VERIFICATION (6/6 tests passed)
+         - Created Kader with NIK 9999999999999999 in Cikembar
+         - Created Saksi with SAME NIK 9999999999999999 in Cikembar
+         - GET /api/stats/kecamatan-detail → Cikembar row shows person counted ONLY ONCE in total_unik
+         - Dedup logic working correctly: Kader > Saksi > Simpatisan priority
+         - Cleanup: Both test records deleted successfully
+      
+      5. ✅ Auth required (3/3 tests passed)
+         - GET /api/stats/kecamatan-detail without token → 401
+         - GET /api/stats/desa-detail without token → 401
+         - GET /api/stats/rw-detail without token → 401
+      
+      🎉 ALL NEW STATS ENDPOINTS WORKING PERFECTLY!
+      Dedup bug fix verified and working correctly. Backend ready for production.

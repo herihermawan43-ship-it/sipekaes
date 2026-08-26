@@ -54,6 +54,9 @@ export const wilayahTargetApi = {
 export const statsApi = {
   summary: () => api.get('/stats/summary'),
   perKecamatan: () => api.get('/stats/per-kecamatan'),
+  kecamatanDetail: () => api.get('/stats/kecamatan-detail'),
+  desaDetail: () => api.get('/stats/desa-detail'),
+  rwDetail: () => api.get('/stats/rw-detail'),
 };
 
 export const excelApi = {

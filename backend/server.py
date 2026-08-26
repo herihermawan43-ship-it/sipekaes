@@ -301,6 +301,160 @@ async def stats_per_kecamatan(current=Depends(get_current_user)):
             })
     return result
 
+@api_router.get("/stats/kecamatan-detail")
+async def stats_kecamatan_detail(current=Depends(get_current_user)):
+    """Per-kecamatan detail with dedup (Kader > Saksi > Simpatisan).
+    Also counts DPC/DPRA/Pelopor/RKI members per kecamatan."""
+    def key_of(d):
+        nik = (d.get('nik') or '').strip()
+        if nik:
+            return f"NIK:{nik}"
+        return f"NM:{(d.get('nama') or '').lower().strip()}|{(d.get('kecamatan') or '').lower().strip()}"
+
+    # Load all people
+    kaders = await db.kader.find().to_list(50000)
+    saksis = await db.saksi.find().to_list(50000)
+    simpatisans = await db.simpatisan.find().to_list(50000)
+
+    kader_keys = {key_of(k) for k in kaders}
+    saksi_keys = {key_of(s) for s in saksis} - kader_keys  # saksi minus kader
+    simpatisan_keys = {key_of(s) for s in simpatisans} - kader_keys - saksi_keys
+
+    # Aggregate per kecamatan
+    by_kec = {}
+    for k in kaders:
+        kec = k.get('kecamatan')
+        if not kec: continue
+        entry = by_kec.setdefault(kec, {'kecamatan': kec, 'kader': 0, 'saksi': 0, 'simpatisan': 0, 'dpc': 0, 'dpra': 0, 'pelopor': 0, 'rki': 0, 'total_unik': 0})
+        entry['kader'] += 1
+        entry['total_unik'] += 1
+        if k.get('is_pengurus_dpc'): entry['dpc'] += 1
+        if k.get('is_pengurus_dpra'): entry['dpra'] += 1
+        if k.get('is_pelopor'): entry['pelopor'] += 1
+        if k.get('is_rki'): entry['rki'] += 1
+
+    for s in saksis:
+        if key_of(s) not in saksi_keys: continue
+        kec = s.get('kecamatan')
+        if not kec: continue
+        entry = by_kec.setdefault(kec, {'kecamatan': kec, 'kader': 0, 'saksi': 0, 'simpatisan': 0, 'dpc': 0, 'dpra': 0, 'pelopor': 0, 'rki': 0, 'total_unik': 0})
+        entry['saksi'] += 1
+        entry['total_unik'] += 1
+        if s.get('is_pengurus_dpc'): entry['dpc'] += 1
+        if s.get('is_pengurus_dpra'): entry['dpra'] += 1
+        if s.get('is_pelopor'): entry['pelopor'] += 1
+        if s.get('is_rki'): entry['rki'] += 1
+
+    for sp in simpatisans:
+        if key_of(sp) not in simpatisan_keys: continue
+        kec = sp.get('kecamatan')
+        if not kec: continue
+        entry = by_kec.setdefault(kec, {'kecamatan': kec, 'kader': 0, 'saksi': 0, 'simpatisan': 0, 'dpc': 0, 'dpra': 0, 'pelopor': 0, 'rki': 0, 'total_unik': 0})
+        entry['simpatisan'] += 1
+        entry['total_unik'] += 1
+        if sp.get('is_pengurus_dpc'): entry['dpc'] += 1
+        if sp.get('is_pengurus_dpra'): entry['dpra'] += 1
+        if sp.get('is_pelopor'): entry['pelopor'] += 1
+        if sp.get('is_rki'): entry['rki'] += 1
+
+    # merge with wilayah_target
+    async for w in db.wilayah_target.find():
+        kec = w.get('kecamatan')
+        if not kec: continue
+        entry = by_kec.setdefault(kec, {'kecamatan': kec, 'kader': 0, 'saksi': 0, 'simpatisan': 0, 'dpc': 0, 'dpra': 0, 'pelopor': 0, 'rki': 0, 'total_unik': 0})
+        entry['baseline'] = w.get('baseline', 0)
+        entry['target'] = w.get('target', 0)
+        entry['realisasi'] = w.get('realisasi', 0)
+
+    return sorted(by_kec.values(), key=lambda x: x['kecamatan'])
+
+@api_router.get("/stats/desa-detail")
+async def stats_desa_detail(current=Depends(get_current_user)):
+    """Aggregate per desa/kelurahan with dedup and RW list."""
+    def key_of(d):
+        nik = (d.get('nik') or '').strip()
+        if nik: return f"NIK:{nik}"
+        return f"NM:{(d.get('nama') or '').lower().strip()}|{(d.get('kecamatan') or '').lower().strip()}"
+
+    kaders = await db.kader.find().to_list(50000)
+    saksis = await db.saksi.find().to_list(50000)
+    simpatisans = await db.simpatisan.find().to_list(50000)
+
+    kader_keys = {key_of(k) for k in kaders}
+    saksi_keys = {key_of(s) for s in saksis} - kader_keys
+    simpatisan_keys = {key_of(s) for s in simpatisans} - kader_keys - saksi_keys
+
+    by_desa = {}
+    def desa_key(d):
+        return f"{d.get('kecamatan','')}|{d.get('desa','')}"
+
+    def ensure(d):
+        dk = desa_key(d)
+        if not d.get('desa'): return None
+        e = by_desa.setdefault(dk, {
+            'kecamatan': d.get('kecamatan',''), 'desa': d.get('desa',''),
+            'kader': 0, 'saksi': 0, 'simpatisan': 0, 'total': 0,
+            'rws': set(),
+        })
+        if d.get('rw'): e['rws'].add(d['rw'])
+        return e
+
+    for k in kaders:
+        e = ensure(k)
+        if e: e['kader'] += 1; e['total'] += 1
+    for s in saksis:
+        if key_of(s) not in saksi_keys: continue
+        e = ensure(s)
+        if e: e['saksi'] += 1; e['total'] += 1
+    for sp in simpatisans:
+        if key_of(sp) not in simpatisan_keys: continue
+        e = ensure(sp)
+        if e: e['simpatisan'] += 1; e['total'] += 1
+
+    out = []
+    for e in by_desa.values():
+        out.append({**e, 'rws': sorted(e['rws']), 'rw_count': len(e['rws'])})
+    return sorted(out, key=lambda x: (x['kecamatan'], x['desa']))
+
+@api_router.get("/stats/rw-detail")
+async def stats_rw_detail(current=Depends(get_current_user)):
+    """Aggregate per RW."""
+    def key_of(d):
+        nik = (d.get('nik') or '').strip()
+        if nik: return f"NIK:{nik}"
+        return f"NM:{(d.get('nama') or '').lower().strip()}|{(d.get('kecamatan') or '').lower().strip()}"
+
+    kaders = await db.kader.find().to_list(50000)
+    saksis = await db.saksi.find().to_list(50000)
+    simpatisans = await db.simpatisan.find().to_list(50000)
+
+    kader_keys = {key_of(k) for k in kaders}
+    saksi_keys = {key_of(s) for s in saksis} - kader_keys
+    simpatisan_keys = {key_of(s) for s in simpatisans} - kader_keys - saksi_keys
+
+    by_rw = {}
+    def rw_key(d):
+        return f"{d.get('kecamatan','')}|{d.get('desa','')}|{d.get('rw','')}"
+    def ensure(d):
+        if not d.get('rw'): return None
+        rk = rw_key(d)
+        return by_rw.setdefault(rk, {
+            'kecamatan': d.get('kecamatan',''), 'desa': d.get('desa',''), 'rw': d.get('rw',''),
+            'kader': 0, 'saksi': 0, 'simpatisan': 0, 'total': 0,
+        })
+    for k in kaders:
+        e = ensure(k)
+        if e: e['kader'] += 1; e['total'] += 1
+    for s in saksis:
+        if key_of(s) not in saksi_keys: continue
+        e = ensure(s)
+        if e: e['saksi'] += 1; e['total'] += 1
+    for sp in simpatisans:
+        if key_of(sp) not in simpatisan_keys: continue
+        e = ensure(sp)
+        if e: e['simpatisan'] += 1; e['total'] += 1
+    return sorted(by_rw.values(), key=lambda x: (x['kecamatan'], x['desa'], x['rw']))
+
 # ================ EXCEL IMPORT / EXPORT ================
 @api_router.get("/simpatisan/template/excel")
 async def download_template(current=Depends(get_current_user)):

@@ -14,26 +14,9 @@ const strengthColor = (pct) => {
 const SebaranPetaMini = () => {
   const center = [-6.95, 106.85];
   return (
-    <div className="relative rounded-xl overflow-hidden border border-gray-100" style={{ height: 280 }}>
-      <div className="absolute top-3 left-3 z-[400] bg-white rounded-xl shadow-md p-3 text-xs">
-        <p className="font-extrabold mb-2">Kekuatan Dukungan</p>
-        <div className="space-y-1">
-          {[
-            { c: '#059669', l: 'Sangat Kuat (80-100%)' },
-            { c: '#84CC16', l: 'Kuat (60-79%)' },
-            { c: '#EAB308', l: 'Sedang (40-59%)' },
-            { c: '#F97316', l: 'Lemah (20-39%)' },
-            { c: '#DC2626', l: 'Sangat Lemah (0-19%)' },
-          ].map(x => (
-            <div key={x.l} className="flex items-center gap-2 font-semibold">
-              <span className="w-3 h-3 rounded" style={{ background: x.c }}></span>
-              {x.l}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <MapContainer center={center} zoom={9} style={{ height: '100%', width: '100%' }} scrollWheelZoom={false}>
+    <div>
+      <div className="relative rounded-xl overflow-hidden border border-gray-100" style={{ height: 240 }}>
+        <MapContainer center={center} zoom={9} style={{ height: '100%', width: '100%' }} scrollWheelZoom={false}>
         <TileLayer
           url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
           attribution='&copy; OpenStreetMap contributors'
@@ -71,6 +54,19 @@ const SebaranPetaMini = () => {
           );
         })}
       </MapContainer>
+      </div>
+      <div className="flex flex-wrap items-center justify-center gap-3 mt-3 px-3 py-2 rounded-lg bg-orange-50/50 text-[10px] font-semibold text-gray-700">
+        <span className="font-extrabold text-orange-700">KEKUATAN:</span>
+        {[
+          { c: '#059669', l: 'Sangat Kuat' },
+          { c: '#84CC16', l: 'Kuat' },
+          { c: '#EAB308', l: 'Sedang' },
+          { c: '#F97316', l: 'Lemah' },
+          { c: '#DC2626', l: 'Sangat Lemah' },
+        ].map(x => (
+          <div key={x.l} className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded" style={{ background: x.c }}></span>{x.l}</div>
+        ))}
+      </div>
     </div>
   );
 };

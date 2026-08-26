@@ -50,25 +50,7 @@ const SebaranPeta = () => (
         <Button variant="outline" className="gap-2"><Filter className="w-4 h-4" /> Filter</Button>
       </div>
 
-      <div className="rounded-2xl overflow-hidden relative" style={{ height: 600 }}>
-        <div className="absolute top-3 right-3 z-[400] bg-white rounded-xl shadow-md p-3 text-xs">
-          <p className="font-extrabold mb-2 flex items-center gap-1"><Layers className="w-3.5 h-3.5" /> Kekuatan Wilayah</p>
-          <div className="space-y-1">
-            {[
-              { c: '#059669', l: 'Sangat Kuat (80-100%)' },
-              { c: '#84CC16', l: 'Kuat (60-79%)' },
-              { c: '#EAB308', l: 'Sedang (40-59%)' },
-              { c: '#F97316', l: 'Lemah (20-39%)' },
-              { c: '#DC2626', l: 'Sangat Lemah (0-19%)' },
-            ].map(x => (
-              <div key={x.l} className="flex items-center gap-2 font-semibold">
-                <span className="w-3 h-3 rounded" style={{ background: x.c }}></span>
-                {x.l}
-              </div>
-            ))}
-          </div>
-        </div>
-
+      <div className="rounded-2xl overflow-hidden relative" style={{ height: 620 }}>
         <MapContainer center={[-6.95, 106.85]} zoom={10} style={{ height: '100%', width: '100%' }}>
           <LayersControl position="topleft">
             <LayersControl.BaseLayer checked name="Peta Standar">
@@ -128,6 +110,23 @@ const SebaranPeta = () => (
             );
           })}
         </MapContainer>
+      </div>
+
+      {/* Horizontal legend at bottom */}
+      <div className="mt-4 flex flex-wrap items-center justify-center gap-4 px-4 py-3 rounded-xl bg-orange-50/50 border border-orange-100">
+        <p className="font-extrabold text-xs flex items-center gap-1 text-gray-800"><Layers className="w-3.5 h-3.5 text-orange-600" /> KEKUATAN DUKUNGAN:</p>
+        {[
+          { c: '#059669', l: 'Sangat Kuat (80-100%)' },
+          { c: '#84CC16', l: 'Kuat (60-79%)' },
+          { c: '#EAB308', l: 'Sedang (40-59%)' },
+          { c: '#F97316', l: 'Lemah (20-39%)' },
+          { c: '#DC2626', l: 'Sangat Lemah (0-19%)' },
+        ].map(x => (
+          <div key={x.l} className="flex items-center gap-1.5 text-xs font-semibold text-gray-700">
+            <span className="w-3 h-3 rounded" style={{ background: x.c }}></span>
+            {x.l}
+          </div>
+        ))}
       </div>
     </div>
   </div>
