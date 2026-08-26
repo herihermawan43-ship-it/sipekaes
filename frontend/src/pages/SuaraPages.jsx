@@ -46,7 +46,7 @@ export const TargetSuara = () => {
         kecamatan: form.kecamatan,
         baseline: Number(form.baseline) || 0,
         target: Number(form.target) || 0,
-        realisasi: Number(form.realisasi) || 0,
+        realisasi: 0,  // ignored — auto from unique count
       });
       toast({ title: 'Target berhasil diperbarui' });
       setEditRow(null);
@@ -61,7 +61,7 @@ export const TargetSuara = () => {
         kecamatan: form.kecamatan,
         baseline: Number(form.baseline) || 0,
         target: Number(form.target) || 0,
-        realisasi: Number(form.realisasi) || 0,
+        realisasi: 0,  // auto-computed
       });
       toast({ title: 'Data target ditambahkan' });
       setAdding(false); setForm({ kecamatan: '', baseline: 0, target: 0, realisasi: 0 });
@@ -99,20 +99,24 @@ export const TargetSuara = () => {
         <div className="flex justify-between mb-5">
           <div>
             <h3 className="text-xl font-extrabold">Target Suara per Kecamatan</h3>
-            <p className="text-sm text-gray-500 font-medium">Klik ikon edit untuk mengubah baseline / target / realisasi</p>
+            <p className="text-sm text-gray-500 font-medium">Baseline & Target manual; <span className="font-bold text-orange-600">Realisasi otomatis</span> dari jumlah unik Kader+Saksi+Simpatisan</p>
           </div>
           <Button onClick={() => setAdding(true)} className="bg-orange-500 hover:bg-orange-600 gap-2 font-bold"><Plus className="w-4 h-4" /> Tambah Kecamatan</Button>
         </div>
 
+        <div className="mb-4 p-3 rounded-xl bg-blue-50 border border-blue-200 flex items-start gap-2 text-xs font-semibold text-blue-800">
+          <Info className="w-4 h-4 flex-shrink-0 mt-0.5" />
+          <span>Kolom <b>Realisasi</b> otomatis bertambah setiap ada Kader/Simpatisan/Saksi baru terdaftar. Dedup NIK (Kader &gt; Saksi &gt; Simpatisan). Anda hanya perlu mengatur Baseline dan Target.</span>
+        </div>
+
         {adding && (
-          <div className="mb-4 p-4 rounded-xl bg-orange-50 border border-orange-200 grid grid-cols-5 gap-3">
+          <div className="mb-4 p-4 rounded-xl bg-orange-50 border border-orange-200 grid grid-cols-4 gap-3">
             <Select value={form.kecamatan} onValueChange={(v) => setForm({...form, kecamatan: v})}>
               <SelectTrigger><SelectValue placeholder="Pilih kecamatan" /></SelectTrigger>
               <SelectContent>{ALL_KEC.map(k => <SelectItem key={k.name} value={k.name}>{k.name}</SelectItem>)}</SelectContent>
             </Select>
             <Input type="number" value={form.baseline} onChange={e => setForm({...form, baseline: e.target.value})} placeholder="Baseline" />
             <Input type="number" value={form.target} onChange={e => setForm({...form, target: e.target.value})} placeholder="Target" />
-            <Input type="number" value={form.realisasi} onChange={e => setForm({...form, realisasi: e.target.value})} placeholder="Realisasi" />
             <div className="flex gap-2">
               <Button onClick={addRow} className="bg-emerald-500 hover:bg-emerald-600 font-bold flex-1">Simpan</Button>
               <Button variant="outline" onClick={() => setAdding(false)}>Batal</Button>
@@ -149,8 +153,10 @@ export const TargetSuara = () => {
                       : <span className="font-medium">{formatNumber(row.target)}</span>}
                   </TableCell>
                   <TableCell className="text-right">
-                    {isEdit ? <Input type="number" value={form.realisasi} onChange={e => setForm({...form, realisasi: e.target.value})} className="h-8 w-32 ml-auto" />
-                      : <span className="font-bold text-orange-600">{formatNumber(row.realisasi)}</span>}
+                    <div className="flex items-center justify-end gap-2">
+                      <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100 text-[9px] font-bold">AUTO</Badge>
+                      <span className="font-bold text-orange-600">{formatNumber(row.realisasi)}</span>
+                    </div>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">

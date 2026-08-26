@@ -290,10 +290,42 @@ async def get_organisasi(jenis: str, current=Depends(get_current_user)):
     return result
 
 # ================ WILAYAH TARGET ================
+async def _compute_realisasi_map():
+    """Compute unique-people count per kecamatan (Kader > Saksi > Simpatisan dedup)."""
+    def key_of(d):
+        nik = (d.get('nik') or '').strip()
+        if nik: return f"NIK:{nik}"
+        return f"NM:{(d.get('nama') or '').lower().strip()}|{(d.get('kecamatan') or '').lower().strip()}"
+    kaders = await db.kader.find().to_list(50000)
+    saksis = await db.saksi.find().to_list(50000)
+    simpatisans = await db.simpatisan.find().to_list(50000)
+    kader_keys = {key_of(k) for k in kaders}
+    saksi_keys = {key_of(s) for s in saksis} - kader_keys
+    simpatisan_keys = {key_of(s) for s in simpatisans} - kader_keys - saksi_keys
+    counts = {}
+    for k in kaders:
+        kec = k.get('kecamatan')
+        if kec: counts[kec] = counts.get(kec, 0) + 1
+    for s in saksis:
+        if key_of(s) not in saksi_keys: continue
+        kec = s.get('kecamatan')
+        if kec: counts[kec] = counts.get(kec, 0) + 1
+    for sp in simpatisans:
+        if key_of(sp) not in simpatisan_keys: continue
+        kec = sp.get('kecamatan')
+        if kec: counts[kec] = counts.get(kec, 0) + 1
+    return counts
+
 @api_router.get("/wilayah-target")
 async def list_wilayah_target(current=Depends(get_current_user)):
     items = await db.wilayah_target.find().sort("kecamatan", 1).to_list(1000)
-    return clean_list(items)
+    realisasi_map = await _compute_realisasi_map()
+    result = []
+    for w in items:
+        w = clean(w)
+        w['realisasi'] = realisasi_map.get(w.get('kecamatan'), 0)
+        result.append(w)
+    return result
 
 @api_router.post("/wilayah-target")
 async def create_wilayah_target(data: WilayahTargetBase, current=Depends(get_current_user)):
@@ -446,14 +478,14 @@ async def stats_summary(current=Depends(get_current_user)):
     rw_tercover = len(rw_set)
     rw_total = 3000
 
-    # Aggregate baseline/target from wilayah_target
+    # Aggregate baseline/target/realisasi (realisasi auto from unique dedup count)
     total_baseline = 0
     total_target = 0
-    total_realisasi = 0
+    realisasi_map = await _compute_realisasi_map()
     async for w in db.wilayah_target.find():
         total_baseline += w.get('baseline', 0) or 0
         total_target += w.get('target', 0) or 0
-        total_realisasi += w.get('realisasi', 0) or 0
+    total_realisasi = sum(realisasi_map.values())
 
     # growth (last 30 days)
     since = datetime.utcnow() - timedelta(days=30)
@@ -552,14 +584,16 @@ async def stats_kecamatan_detail(current=Depends(get_current_user)):
         if sp.get('is_pelopor'): entry['pelopor'] += 1
         if sp.get('is_rki'): entry['rki'] += 1
 
-    # merge with wilayah_target
+    # merge with wilayah_target (baseline/target from stored, realisasi = total_unik)
     async for w in db.wilayah_target.find():
         kec = w.get('kecamatan')
         if not kec: continue
         entry = by_kec.setdefault(kec, {'kecamatan': kec, 'kader': 0, 'saksi': 0, 'simpatisan': 0, 'dpc': 0, 'dpra': 0, 'pelopor': 0, 'rki': 0, 'total_unik': 0})
         entry['baseline'] = w.get('baseline', 0)
         entry['target'] = w.get('target', 0)
-        entry['realisasi'] = w.get('realisasi', 0)
+    # realisasi = total_unik (auto)
+    for e in by_kec.values():
+        e['realisasi'] = e['total_unik']
 
     return sorted(by_kec.values(), key=lambda x: x['kecamatan'])
 

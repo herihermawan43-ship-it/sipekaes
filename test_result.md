@@ -356,6 +356,18 @@ backend:
         agent: "testing"
         comment: "✅ ALL QUICK COUNT TESTS PASSED (42/42). Test 1 - CRUD as superadmin (10/10): GET /api/quick-count returns 200 with array. POST creates entry with id, submitted_by=superadmin, submitted_at. POST with same tps+kecamatan correctly updates (upsert) without creating duplicate. PUT updates entry successfully. Test 2 - Summary (17/17): Created 3 test entries. GET /api/quick-count/summary returns 200 with all required fields (total_tps_terlapor, target_tps, coverage_persen, total_suara_sah, total_suara_tidak_sah, total_dpt, partisipasi_persen). paslon array has 3 items with nama/suara/persen/warna. per_kecamatan is array. total_suara_sah matches sum of paslon suara. Test 3 - Saksi role restrictions (6/6): Login as saksi/admin123 successful. GET /api/quick-count as saksi returns only entries for tps='TPS 01' AND kecamatan='Cikembar' (area filtering working). POST as saksi for own area returns 200 with submitted_by=saksi. DELETE as saksi correctly returns 403 (only super_admin/admin_pusat can delete). Test 4 - Auth required (2/2): GET /api/quick-count without token returns 401. GET /api/quick-count/summary without token returns 401. Cleanup: All 4 test entries deleted successfully. All Quick Count endpoints working perfectly."
 
+  - task: "Auto-computed realisasi in wilayah-target"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ ALL AUTO-COMPUTED REALISASI TESTS PASSED (26/26). Test 1 - GET /api/wilayah-target verifies realisasi is AUTO-computed (6/6): Found Cikembar with realisasi=6. GET /api/stats/kecamatan-detail shows total_unik=6 for Cikembar. Verified realisasi in wilayah-target == total_unik in kecamatan-detail (auto-computation working). Test 2 - Auto-increment on new member (6/6): OLD realisasi=6. POST /api/kader with TestAutoReal → realisasi incremented to 7. POST /api/simpatisan with TestSimpAuto → realisasi incremented to 8 (total +2). Cleanup successful. Test 3 - Dedup preserved (6/6): POST /api/kader with DedupTest (NIK 77771234567890) → realisasi incremented by 1. POST /api/saksi with SAME NIK → realisasi DID NOT increment (dedup working - same NIK counted once as Kader). Cleanup successful. Test 4 - stats/summary total_realisasi matches sum (2/2): GET /api/stats/summary returns realisasi=25. Sum of all wilayah-target realisasi=25. Both totals match perfectly. Test 5 - PUT ignores realisasi in payload (5/5): PUT /api/wilayah-target with baseline=999, target=9999, realisasi=0 → baseline and target updated correctly, but realisasi STILL auto-computed (not 0). Verified realisasi remains auto-computed after PUT. Original values restored. All auto-computed realisasi features working perfectly with proper dedup logic (Kader > Saksi > Simpatisan priority)."
+
 
 frontend:
   - task: "Login page + Dashboard + all pages"
@@ -373,7 +385,7 @@ frontend:
 metadata:
   created_by: "main_agent"
   version: "1.0"
-  test_sequence: 5
+  test_sequence: 6
   run_ui: false
 
 test_plan:
@@ -592,4 +604,53 @@ agent_communication:
       🎉 ALL QUICK COUNT ENDPOINTS WORKING PERFECTLY!
       All CRUD operations, summary aggregation, role-based filtering, and permissions tested and verified.
       Backend Quick Count feature is production-ready with no issues found.
+  - agent: "testing"
+    message: |
+      ✅ AUTO-COMPUTED REALISASI TESTING COMPLETE - ALL TESTS PASSED (26/26)
+      
+      Comprehensive testing of NEW auto-computed realisasi feature for SiPekaeS:
+      
+      1. ✅ GET /api/wilayah-target - Auto-computed realisasi (6/6 tests passed)
+         - GET /api/wilayah-target → 200 with list of kecamatan
+         - Found Cikembar with realisasi=6
+         - GET /api/stats/kecamatan-detail → 200 with total_unik=6 for Cikembar
+         - Verified: realisasi in wilayah-target == total_unik in kecamatan-detail
+         - Auto-computation working correctly
+      
+      2. ✅ Auto-increment on new member (6/6 tests passed)
+         - OLD realisasi for Cikembar: 6
+         - POST /api/kader with TestAutoReal (NIK 88881234567890) → 200
+         - NEW realisasi: 7 (incremented by 1)
+         - POST /api/simpatisan with TestSimpAuto (NIK 99991234567890) → 200
+         - NEW realisasi: 8 (incremented by 2 total)
+         - Cleanup: Both test records deleted successfully
+      
+      3. ✅ Dedup preserved in auto-computed realisasi (6/6 tests passed)
+         - POST /api/kader with DedupTest (NIK 77771234567890) → 200
+         - Realisasi incremented by 1 (now 7)
+         - POST /api/saksi with SAME NIK 77771234567890 → 200
+         - Realisasi DID NOT increment (still 7)
+         - Dedup working correctly: same NIK counted once as Kader (Kader > Saksi > Simpatisan priority)
+         - Cleanup: Both test records deleted successfully
+      
+      4. ✅ /api/stats/summary total_realisasi matches sum (2/2 tests passed)
+         - GET /api/stats/summary → 200 with realisasi=25
+         - Sum of all wilayah-target realisasi: 25
+         - Both totals match perfectly
+      
+      5. ✅ PUT /api/wilayah-target ignores realisasi in payload (5/5 tests passed)
+         - OLD values: baseline=35000, target=70000, realisasi=6
+         - PUT /api/wilayah-target/{id} with baseline=999, target=9999, realisasi=0 → 200
+         - NEW values: baseline=999, target=9999, realisasi=6
+         - baseline and target updated correctly
+         - realisasi STILL auto-computed (not 0) - correctly ignored payload value
+         - Original values restored successfully
+      
+      🎉 ALL AUTO-COMPUTED REALISASI FEATURES WORKING PERFECTLY!
+      - Realisasi is now fully auto-computed from unique member counts (Kader + Saksi + Simpatisan)
+      - Dedup logic preserved: Kader > Saksi > Simpatisan priority (same NIK counted once)
+      - Auto-increments when new members added
+      - PUT endpoint correctly ignores realisasi in payload
+      - stats/summary total_realisasi matches sum of all kecamatan
+      Backend auto-computed realisasi feature is production-ready with no issues found.
 
