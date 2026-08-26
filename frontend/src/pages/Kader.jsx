@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
-import { UserCheck, Plus, Search, Filter, Edit, Trash2, Phone, Eye, MessageCircle } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { UserCheck, Plus, Search, Filter, Edit, Trash2, Phone, Eye, MessageCircle, Upload, FileSpreadsheet, Loader2 } from 'lucide-react';
 import { Input } from '../components/ui/input';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { useEntity } from '../hooks/useEntity';
-import { kaderApi } from '../lib/api';
+import { kaderApi, kaderExcelApi } from '../lib/api';
+import { toast } from '../hooks/use-toast';
 import EntityFormDialog from '../components/EntityFormDialog';
 import ConfirmDialog from '../components/ConfirmDialog';
 import DetailModal from '../components/DetailModal';
@@ -31,12 +32,34 @@ const normalizeWa = (hp) => { if (!hp) return ''; let s = String(hp).replace(/\D
 const Kader = () => {
   const { user } = useAuth();
   const canWrite = ['super_admin','admin_pusat','admin_input','koordinator'].includes(user?.role);
-  const { items, loading, create, update, remove } = useEntity(kaderApi, 'Kader');
+  const { items, loading, create, update, remove, load } = useEntity(kaderApi, 'Kader');
   const [search, setSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editData, setEditData] = useState(null);
   const [confirmDel, setConfirmDel] = useState(null);
   const [detail, setDetail] = useState(null);
+  const [importing, setImporting] = useState(false);
+  const fileRef = useRef();
+
+  const downloadTemplate = async () => {
+    try {
+      const res = await kaderExcelApi.downloadTemplate();
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const a = document.createElement('a'); a.href = url; a.download = 'template_kader.xlsx'; a.click();
+      window.URL.revokeObjectURL(url);
+      toast({ title: 'Template kader terunduh' });
+    } catch (e) { toast({ title: 'Gagal unduh', variant: 'destructive' }); }
+  };
+  const handleImport = async (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    setImporting(true);
+    try {
+      const res = await kaderExcelApi.import(file);
+      toast({ title: `Import selesai — ${res.data.inserted} kader ditambahkan`, description: res.data.total_errors > 0 ? `${res.data.total_errors} baris gagal` : 'Sukses semua' });
+      await load();
+    } catch (err) { toast({ title: 'Gagal import', description: err.response?.data?.detail || err.message, variant: 'destructive' }); }
+    finally { setImporting(false); e.target.value = ''; }
+  };
 
   const filtered = items.filter(k => k.nama?.toLowerCase().includes(search.toLowerCase()) || k.jabatan?.toLowerCase().includes(search.toLowerCase()));
 
@@ -68,7 +91,16 @@ const Kader = () => {
               <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Cari kader..." className="pl-9 h-10 w-64" />
             </div>
             <Button variant="outline" className="h-10 gap-2"><Filter className="w-4 h-4" /> Filter</Button>
-            {canWrite && <Button onClick={() => { setEditData(null); setDialogOpen(true); }} className="h-10 bg-orange-500 hover:bg-orange-600 gap-2 font-bold"><Plus className="w-4 h-4" /> Tambah Kader</Button>}
+            {canWrite && (
+              <>
+                <input ref={fileRef} type="file" accept=".xlsx,.xls" onChange={handleImport} className="hidden" />
+                <Button variant="outline" onClick={downloadTemplate} className="h-10 gap-2 font-semibold"><FileSpreadsheet className="w-4 h-4" /> Template</Button>
+                <Button variant="outline" onClick={() => fileRef.current?.click()} disabled={importing} className="h-10 gap-2 font-semibold">
+                  {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />} Import
+                </Button>
+                <Button onClick={() => { setEditData(null); setDialogOpen(true); }} className="h-10 bg-orange-500 hover:bg-orange-600 gap-2 font-bold"><Plus className="w-4 h-4" /> Tambah Kader</Button>
+              </>
+            )}
           </div>
         </div>
 

@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
-import { ShieldCheck, Plus, Search, Filter, Edit, Trash2, MapPin, Eye, MessageCircle } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { ShieldCheck, Plus, Search, Filter, Edit, Trash2, MapPin, Eye, MessageCircle, Upload, FileSpreadsheet, Loader2 } from 'lucide-react';
 import { Input } from '../components/ui/input';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { useEntity } from '../hooks/useEntity';
-import { saksiApi } from '../lib/api';
+import { saksiApi, saksiExcelApi } from '../lib/api';
+import { toast } from '../hooks/use-toast';
 import EntityFormDialog from '../components/EntityFormDialog';
 import ConfirmDialog from '../components/ConfirmDialog';
 import DetailModal from '../components/DetailModal';
@@ -33,12 +34,34 @@ const normalizeWa = (hp) => { if (!hp) return ''; let s = String(hp).replace(/\D
 const Saksi = () => {
   const { user } = useAuth();
   const canWrite = ['super_admin','admin_pusat','admin_input','koordinator'].includes(user?.role);
-  const { items, loading, create, update, remove } = useEntity(saksiApi, 'Saksi');
+  const { items, loading, create, update, remove, load } = useEntity(saksiApi, 'Saksi');
   const [search, setSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editData, setEditData] = useState(null);
   const [confirmDel, setConfirmDel] = useState(null);
   const [detail, setDetail] = useState(null);
+  const [importing, setImporting] = useState(false);
+  const fileRef = useRef();
+
+  const downloadTemplate = async () => {
+    try {
+      const res = await saksiExcelApi.downloadTemplate();
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const a = document.createElement('a'); a.href = url; a.download = 'template_saksi.xlsx'; a.click();
+      window.URL.revokeObjectURL(url);
+      toast({ title: 'Template saksi terunduh' });
+    } catch { toast({ title: 'Gagal unduh', variant: 'destructive' }); }
+  };
+  const handleImport = async (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    setImporting(true);
+    try {
+      const res = await saksiExcelApi.import(file);
+      toast({ title: `Import selesai — ${res.data.inserted} saksi ditambahkan`, description: res.data.total_errors > 0 ? `${res.data.total_errors} baris gagal` : 'Sukses semua' });
+      await load();
+    } catch (err) { toast({ title: 'Gagal import', description: err.response?.data?.detail || err.message, variant: 'destructive' }); }
+    finally { setImporting(false); e.target.value = ''; }
+  };
 
   const filtered = items.filter(s => s.nama?.toLowerCase().includes(search.toLowerCase()));
 
@@ -70,7 +93,16 @@ const Saksi = () => {
               <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Cari saksi..." className="pl-9 h-10 w-64" />
             </div>
             <Button variant="outline" className="h-10 gap-2"><Filter className="w-4 h-4" /> Filter</Button>
-            {canWrite && <Button onClick={() => { setEditData(null); setDialogOpen(true); }} className="h-10 bg-orange-500 hover:bg-orange-600 gap-2 font-bold"><Plus className="w-4 h-4" /> Tambah Saksi</Button>}
+            {canWrite && (
+              <>
+                <input ref={fileRef} type="file" accept=".xlsx,.xls" onChange={handleImport} className="hidden" />
+                <Button variant="outline" onClick={downloadTemplate} className="h-10 gap-2 font-semibold"><FileSpreadsheet className="w-4 h-4" /> Template</Button>
+                <Button variant="outline" onClick={() => fileRef.current?.click()} disabled={importing} className="h-10 gap-2 font-semibold">
+                  {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />} Import
+                </Button>
+                <Button onClick={() => { setEditData(null); setDialogOpen(true); }} className="h-10 bg-orange-500 hover:bg-orange-600 gap-2 font-bold"><Plus className="w-4 h-4" /> Tambah Saksi</Button>
+              </>
+            )}
           </div>
         </div>
 

@@ -10,6 +10,7 @@ from typing import List, Optional
 from datetime import datetime, timedelta
 import io
 import openpyxl
+from pydantic import BaseModel
 
 from models import (
     LoginRequest, TokenResponse, UserOut,
@@ -114,6 +115,108 @@ async def list_users(current=Depends(get_current_user)):
         desa_kerja=u.get('desa_kerja', ''),
         tps_kerja=u.get('tps_kerja', ''),
     ) for u in users]
+
+class UserCreatePayload(LoginRequest):
+    name: str
+    role: str
+    roleLabel: Optional[str] = ""
+    avatar: Optional[str] = ""
+    kecamatan_kerja: Optional[str] = ""
+    desa_kerja: Optional[str] = ""
+    tps_kerja: Optional[str] = ""
+
+class UserUpdatePayload(LoginRequest):
+    name: str
+    role: str
+    roleLabel: Optional[str] = ""
+    avatar: Optional[str] = ""
+    kecamatan_kerja: Optional[str] = ""
+    desa_kerja: Optional[str] = ""
+    tps_kerja: Optional[str] = ""
+    password: Optional[str] = None  # optional (leave empty to not change)
+
+@api_router.post("/users", response_model=UserOut)
+async def create_user(payload: UserCreatePayload, current=Depends(get_current_user)):
+    if current.get('role') not in ('super_admin', 'admin_pusat'):
+        raise HTTPException(status_code=403, detail="Tidak berhak menambah pengguna")
+    existing = await db.users.find_one({"username": payload.username})
+    if existing:
+        raise HTTPException(status_code=400, detail="Username sudah dipakai")
+    from models import uid as _uid
+    doc = {
+        'id': _uid(), 'username': payload.username, 'name': payload.name,
+        'role': payload.role, 'roleLabel': payload.roleLabel or payload.role,
+        'avatar': payload.avatar or '',
+        'kecamatan_kerja': payload.kecamatan_kerja or '',
+        'desa_kerja': payload.desa_kerja or '',
+        'tps_kerja': payload.tps_kerja or '',
+        'hashed_password': hash_password(payload.password),
+        'created_at': datetime.utcnow(),
+    }
+    await db.users.insert_one(doc.copy())
+    return UserOut(**{k: doc[k] for k in ['id','username','name','role','roleLabel','avatar','kecamatan_kerja','desa_kerja','tps_kerja']})
+
+@api_router.put("/users/{user_id}", response_model=UserOut)
+async def update_user(user_id: str, payload: UserUpdatePayload, current=Depends(get_current_user)):
+    if current.get('role') not in ('super_admin', 'admin_pusat'):
+        raise HTTPException(status_code=403, detail="Tidak berhak")
+    user = await db.users.find_one({"id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User tidak ditemukan")
+    update = {
+        'username': payload.username, 'name': payload.name, 'role': payload.role,
+        'roleLabel': payload.roleLabel or payload.role, 'avatar': payload.avatar or '',
+        'kecamatan_kerja': payload.kecamatan_kerja or '',
+        'desa_kerja': payload.desa_kerja or '',
+        'tps_kerja': payload.tps_kerja or '',
+    }
+    if payload.password:
+        update['hashed_password'] = hash_password(payload.password)
+    await db.users.update_one({"id": user_id}, {"$set": update})
+    u = await db.users.find_one({"id": user_id})
+    return UserOut(id=u['id'], username=u['username'], name=u['name'], role=u['role'],
+                   roleLabel=u.get('roleLabel'), avatar=u.get('avatar'),
+                   kecamatan_kerja=u.get('kecamatan_kerja',''), desa_kerja=u.get('desa_kerja',''), tps_kerja=u.get('tps_kerja',''))
+
+@api_router.delete("/users/{user_id}")
+async def delete_user(user_id: str, current=Depends(get_current_user)):
+    if current.get('role') != 'super_admin':
+        raise HTTPException(status_code=403, detail="Hanya Super Admin yang bisa hapus pengguna")
+    user = await db.users.find_one({"id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User tidak ditemukan")
+    if user.get('username') == current.get('sub'):
+        raise HTTPException(status_code=400, detail="Tidak bisa menghapus akun sendiri")
+    await db.users.delete_one({"id": user_id})
+    return {"ok": True}
+
+class ChangePasswordPayload(BaseModel):
+    old_password: str
+    new_password: str
+
+@api_router.post("/auth/change-password")
+async def change_password(payload: ChangePasswordPayload, current=Depends(get_current_user)):
+    user = await db.users.find_one({"username": current['sub']})
+    if not user:
+        raise HTTPException(status_code=404, detail="User tidak ditemukan")
+    if not verify_password(payload.old_password, user['hashed_password']):
+        raise HTTPException(status_code=400, detail="Password lama salah")
+    if len(payload.new_password) < 6:
+        raise HTTPException(status_code=400, detail="Password baru minimal 6 karakter")
+    await db.users.update_one({"id": user['id']}, {"$set": {"hashed_password": hash_password(payload.new_password)}})
+    return {"ok": True, "message": "Password berhasil diubah"}
+
+@api_router.post("/admin/reset-demo-data")
+async def reset_demo_data(current=Depends(get_current_user)):
+    """Hapus SEMUA data (simpatisan, kader, saksi, wilayah_target) — TIDAK menghapus user.
+    Hanya Super Admin yang bisa jalankan. Untuk siapkan aplikasi ke production tanpa data demo."""
+    if current.get('role') != 'super_admin':
+        raise HTTPException(status_code=403, detail="Hanya Super Admin")
+    counts = {}
+    for coll in ('simpatisan', 'kader', 'saksi', 'wilayah_target'):
+        result = await db[coll].delete_many({})
+        counts[coll] = result.deleted_count
+    return {"ok": True, "deleted": counts, "message": "Semua data demo terhapus. User tetap tersimpan."}
 
 # ================ CRUD Simpatisan / Kader / Saksi ================
 def make_crud(prefix: str, collection: str, base_model, full_model):
@@ -517,6 +620,100 @@ async def import_excel(file: UploadFile = File(...), current=Depends(get_current
             errors.append(f"Baris {i}: {str(e)}")
 
     if docs: await db.simpatisan.insert_many(docs)
+    return {"inserted": inserted, "errors": errors[:20], "total_errors": len(errors)}
+
+# ================ Excel Kader & Saksi ================
+def _make_template(fields, sample):
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.append(fields)
+    ws.append(sample)
+    for col in ws.columns:
+        max_len = max(len(str(c.value or "")) for c in col)
+        ws.column_dimensions[col[0].column_letter].width = max(max_len + 2, 12)
+    buf = io.BytesIO(); wb.save(buf); buf.seek(0)
+    return buf
+
+@api_router.get("/kader/template/excel")
+async def kader_template(current=Depends(get_current_user)):
+    buf = _make_template(
+        ["nama", "jabatan", "hp", "kecamatan", "desa", "rw", "alamat"],
+        ["Contoh Kader", "Kader Aktif", "081234567890", "Cikembar", "Mekarjaya", "RW 04", "Jl. Contoh No. 1"]
+    )
+    return StreamingResponse(buf, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=template_kader.xlsx"})
+
+@api_router.post("/kader/import/excel")
+async def kader_import(file: UploadFile = File(...), current=Depends(get_current_user)):
+    if not file.filename.endswith(('.xlsx', '.xls')):
+        raise HTTPException(status_code=400, detail="File harus .xlsx")
+    content = await file.read()
+    try:
+        wb = openpyxl.load_workbook(io.BytesIO(content), data_only=True); ws = wb.active
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Gagal baca: {e}")
+    rows = list(ws.iter_rows(values_only=True))
+    if len(rows) < 2: raise HTTPException(status_code=400, detail="File kosong")
+    headers = [str(h).lower().strip() if h else "" for h in rows[0]]
+    for r in ('nama', 'kecamatan', 'jabatan'):
+        if r not in headers: raise HTTPException(status_code=400, detail=f"Kolom '{r}' wajib ada")
+    inserted, errors, docs = 0, [], []
+    for i, row in enumerate(rows[1:], start=2):
+        if not any(row): continue
+        try:
+            data = {h: str(v).strip() for h, v in zip(headers, row) if h and v is not None}
+            if not data.get('nama') or not data.get('kecamatan') or not data.get('jabatan'):
+                errors.append(f"Baris {i}: nama/kecamatan/jabatan wajib"); continue
+            docs.append(Kader(
+                nama=data.get('nama',''), jabatan=data.get('jabatan',''), hp=data.get('hp',''),
+                kecamatan=data.get('kecamatan',''), desa=data.get('desa',''), rw=data.get('rw',''),
+                alamat=data.get('alamat','')
+            ).dict())
+            inserted += 1
+        except Exception as e:
+            errors.append(f"Baris {i}: {e}")
+    if docs: await db.kader.insert_many(docs)
+    return {"inserted": inserted, "errors": errors[:20], "total_errors": len(errors)}
+
+@api_router.get("/saksi/template/excel")
+async def saksi_template(current=Depends(get_current_user)):
+    buf = _make_template(
+        ["nama", "tps", "hp", "kecamatan", "desa", "rw", "alamat", "status"],
+        ["Contoh Saksi", "TPS 01", "081234567890", "Cikembar", "Mekarjaya", "RW 04", "Jl. Contoh No. 1", "pending"]
+    )
+    return StreamingResponse(buf, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=template_saksi.xlsx"})
+
+@api_router.post("/saksi/import/excel")
+async def saksi_import(file: UploadFile = File(...), current=Depends(get_current_user)):
+    if not file.filename.endswith(('.xlsx', '.xls')):
+        raise HTTPException(status_code=400, detail="File harus .xlsx")
+    content = await file.read()
+    try:
+        wb = openpyxl.load_workbook(io.BytesIO(content), data_only=True); ws = wb.active
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Gagal baca: {e}")
+    rows = list(ws.iter_rows(values_only=True))
+    if len(rows) < 2: raise HTTPException(status_code=400, detail="File kosong")
+    headers = [str(h).lower().strip() if h else "" for h in rows[0]]
+    for r in ('nama', 'kecamatan', 'tps'):
+        if r not in headers: raise HTTPException(status_code=400, detail=f"Kolom '{r}' wajib ada")
+    inserted, errors, docs = 0, [], []
+    for i, row in enumerate(rows[1:], start=2):
+        if not any(row): continue
+        try:
+            data = {h: str(v).strip() for h, v in zip(headers, row) if h and v is not None}
+            if not data.get('nama') or not data.get('kecamatan') or not data.get('tps'):
+                errors.append(f"Baris {i}: nama/kecamatan/tps wajib"); continue
+            docs.append(Saksi(
+                nama=data.get('nama',''), tps=data.get('tps',''), hp=data.get('hp',''),
+                kecamatan=data.get('kecamatan',''), desa=data.get('desa',''), rw=data.get('rw',''),
+                alamat=data.get('alamat',''), status=data.get('status','pending')
+            ).dict())
+            inserted += 1
+        except Exception as e:
+            errors.append(f"Baris {i}: {e}")
+    if docs: await db.saksi.insert_many(docs)
     return {"inserted": inserted, "errors": errors[:20], "total_errors": len(errors)}
 
 # ================ Include router ================

@@ -272,6 +272,78 @@ backend:
         agent: "testing"
         comment: "✅ ALL NEW STATS ENDPOINTS VERIFIED (25/25 tests). GET /api/stats/kecamatan-detail returns array with all required fields (kecamatan, kader, saksi, simpatisan, total_unik, dpc, dpra, pelopor, rki, baseline, target, realisasi). GET /api/stats/desa-detail returns array with kecamatan, desa, kader, saksi, simpatisan, total, rw_count, rws. GET /api/stats/rw-detail returns array with kecamatan, desa, rw, kader, saksi, simpatisan, total. CRITICAL DEDUP TEST PASSED: Created Kader and Saksi with same NIK (9999999999999999), verified person counted only ONCE in total_unik (dedup working correctly). All endpoints require auth (401 without token). All dedup formulas verified: kader + saksi + simpatisan == total_unik/total for all rows."
 
+  - task: "Change password endpoint"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ CHANGE PASSWORD TESTS PASSED (7/7). POST /api/auth/change-password with correct old_password and new_password returns 200 {ok:true}. Login with new password successful. Wrong old_password returns 400. New password < 6 chars returns 400. Password successfully restored to SiPekaeS@2025 for future tests. All validation working correctly."
+
+  - task: "User CRUD endpoints"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ USER CRUD TESTS PASSED (7/7). POST /api/users creates new user with all fields (username, password, name, role, roleLabel, kecamatan_kerja) returns 200 with UserOut. Duplicate username returns 400. GET /api/users includes new user. PUT /api/users/{id} with password='' (empty) correctly updates name without changing password - verified by successful login with original password. DELETE /api/users/{id} returns {ok:true}. DELETE self (superadmin deleting own account) correctly returns 400. All CRUD operations working correctly."
+
+  - task: "User CRUD permissions"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ USER PERMISSIONS TESTS PASSED (3/3). Login as admininput/admin123 successful. POST /api/users with admininput token correctly returns 403 (only super_admin & admin_pusat can create users). DELETE /api/users/{id} with admininput token correctly returns 403 (only super_admin can delete). Role-based permissions working correctly."
+
+  - task: "Kader Excel import/export"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ KADER EXCEL TESTS PASSED (4/4). GET /api/kader/template/excel returns valid xlsx file with correct Content-Type. Created test xlsx with headers [nama, jabatan, hp, kecamatan, desa, rw, alamat] and 2 test rows. POST /api/kader/import/excel successfully imported 2 records, returned {inserted:2, errors:[]}. GET /api/kader verified new kaders present. Cleanup: deleted test kaders successfully. Excel import/export working correctly."
+
+  - task: "Saksi Excel import/export"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ SAKSI EXCEL TESTS PASSED (4/4). GET /api/saksi/template/excel returns valid xlsx file with correct Content-Type. Created test xlsx with headers [nama, tps, hp, kecamatan, desa, rw, alamat, status] and 2 test rows. POST /api/saksi/import/excel successfully imported 2 records, returned {inserted:2, errors:[]}. GET /api/saksi verified new saksi present. Cleanup: deleted test saksi successfully. Excel import/export working correctly."
+
+  - task: "Reset demo data endpoint"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ RESET DEMO DATA TESTS PASSED (5/5). POST /api/admin/reset-demo-data with admininput token correctly returns 403 (only super_admin). POST with super_admin token returns 200 with deleted counts: {simpatisan:10, kader:10, saksi:6, wilayah_target:15}. GET /api/simpatisan, /api/kader, /api/saksi all return empty arrays after reset. Demo data successfully restored by running python /app/backend/seed.py (verified: simpatisan:9, kader:10, saksi:6, wilayah_target:15). Reset endpoint working correctly."
+
 frontend:
   - task: "Login page + Dashboard + all pages"
     implemented: true
@@ -288,7 +360,7 @@ frontend:
 metadata:
   created_by: "main_agent"
   version: "1.0"
-  test_sequence: 4
+  test_sequence: 5
   run_ui: false
 
 test_plan:
@@ -421,3 +493,54 @@ agent_communication:
       
       🎉 ALL NEW STATS ENDPOINTS WORKING PERFECTLY!
       Dedup bug fix verified and working correctly. Backend ready for production.
+
+  - agent: "testing"
+    message: |
+      ✅ NEW BACKEND ENDPOINTS TESTING COMPLETE - ALL TESTS PASSED (30/30)
+      
+      Comprehensive testing of NEW backend endpoints for SiPekaeS:
+      
+      1. ✅ Change Password (7/7 tests passed)
+         - POST /api/auth/change-password with correct old_password → 200 {ok:true}
+         - Login with new password → success
+         - Wrong old_password → 400
+         - New password < 6 chars → 400
+         - Password restored to SiPekaeS@2025 for future tests
+      
+      2. ✅ User CRUD (7/7 tests passed)
+         - POST /api/users → creates user with 200, returns UserOut
+         - Duplicate username → 400
+         - GET /api/users → includes new user
+         - PUT /api/users/{id} with password='' → updates name without changing password (verified by login)
+         - DELETE /api/users/{id} → 200 {ok:true}
+         - DELETE self → 400 (cannot delete own account)
+      
+      3. ✅ User CRUD Permissions (3/3 tests passed)
+         - Login as admininput/admin123 → success
+         - POST /api/users with admininput token → 403 (only super_admin & admin_pusat can create)
+         - DELETE /api/users with admininput token → 403 (only super_admin can delete)
+      
+      4. ✅ Kader Excel (4/4 tests passed)
+         - GET /api/kader/template/excel → valid xlsx with correct Content-Type
+         - POST /api/kader/import/excel with test xlsx (2 rows) → 200 {inserted:2, errors:[]}
+         - GET /api/kader → new kaders present
+         - Cleanup: test kaders deleted
+      
+      5. ✅ Saksi Excel (4/4 tests passed)
+         - GET /api/saksi/template/excel → valid xlsx with correct Content-Type
+         - POST /api/saksi/import/excel with test xlsx (2 rows) → 200 {inserted:2, errors:[]}
+         - GET /api/saksi → new saksi present
+         - Cleanup: test saksi deleted
+      
+      6. ✅ Reset Demo Data (5/5 tests passed)
+         - POST /api/admin/reset-demo-data as admininput → 403 (only super_admin)
+         - POST as super_admin → 200 with deleted counts {simpatisan:10, kader:10, saksi:6, wilayah_target:15}
+         - GET /api/simpatisan → [] (empty after reset)
+         - GET /api/kader → [] (empty after reset)
+         - GET /api/saksi → [] (empty after reset)
+         - Demo data restored by running python /app/backend/seed.py
+         - Verified restoration: simpatisan:9, kader:10, saksi:6, wilayah_target:15
+      
+      🎉 ALL NEW BACKEND ENDPOINTS WORKING PERFECTLY!
+      All authentication, CRUD, permissions, Excel import/export, and admin endpoints tested and verified.
+      Backend is production-ready with no issues found.

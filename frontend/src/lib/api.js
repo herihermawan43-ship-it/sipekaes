@@ -39,7 +39,20 @@ export const crud = (entity) => ({
 export const simpatisanApi = crud('simpatisan');
 export const kaderApi = crud('kader');
 export const saksiApi = crud('saksi');
-export const usersApi = { list: () => api.get('/users') };
+export const usersApi = {
+  list: () => api.get('/users'),
+  create: (data) => api.post('/users', data),
+  update: (id, data) => api.put(`/users/${id}`, data),
+  remove: (id) => api.delete(`/users/${id}`),
+};
+
+export const passwordApi = {
+  change: (old_password, new_password) => api.post('/auth/change-password', { old_password, new_password }),
+};
+
+export const adminApi = {
+  resetDemo: () => api.post('/admin/reset-demo-data'),
+};
 
 export const organisasiApi = {
   list: (jenis) => api.get(`/organisasi/${jenis}`), // jenis: dpc|dpra|pelopor|rki
@@ -67,5 +80,16 @@ export const excelApi = {
     return api.post('/simpatisan/import/excel', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
   },
 };
+
+const makeExcelApi = (entity) => ({
+  downloadTemplate: () => api.get(`/${entity}/template/excel`, { responseType: 'blob' }),
+  import: (file) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    return api.post(`/${entity}/import/excel`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+  },
+});
+export const kaderExcelApi = makeExcelApi('kader');
+export const saksiExcelApi = makeExcelApi('saksi');
 
 export default api;
