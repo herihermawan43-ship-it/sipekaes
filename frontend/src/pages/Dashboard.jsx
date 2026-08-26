@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Users, UserCheck, ShieldCheck, MapPin, Target as TargetIcon,
   Flag, TrendingUp, ChevronDown, Filter, Plus, MoreHorizontal,
@@ -9,7 +9,8 @@ import {
   PieChart, Pie, Cell, Legend
 } from 'recharts';
 import { useAuth } from '../context/AuthContext';
-import { STATS, CHART_DATA, KECAMATAN_LIST, AKTIVITAS, SIMPATISAN, KEGIATAN } from '../mock/mockData';
+import { STATS as MOCK_STATS, CHART_DATA, KECAMATAN_LIST, AKTIVITAS, KEGIATAN } from '../mock/mockData';
+import { statsApi, simpatisanApi } from '../lib/api';
 import { StatCard, SectionCard, formatNumber } from '../components/shared/UI';
 import SebaranPetaMini from '../components/dashboard/SebaranPetaMini';
 import { Input } from '../components/ui/input';
@@ -19,24 +20,43 @@ const ACT_ICONS = { simpatisan: UserPlus, kader: RefreshCw, saksi: FileText, tar
 
 const Dashboard = () => {
   const { user } = useAuth();
+  const [stats, setStats] = useState(null);
+  const [simpatisanList, setSimpatisanList] = useState([]);
+
+  useEffect(() => {
+    statsApi.summary().then(r => setStats(r.data)).catch(() => setStats(null));
+    simpatisanApi.list().then(r => setSimpatisanList(r.data)).catch(() => {});
+  }, []);
+
+  // Merge real stats with fallback constants
+  const s = {
+    simpatisan: stats?.simpatisan || { value: 0, growth: 0 },
+    kader: stats?.kader || { value: 0, growth: 0 },
+    saksi: stats?.saksi || { value: 0, growth: 0 },
+    rw: stats?.rw || { value: 0, total: 3000, tercover: 0 },
+    baseline: stats?.baseline || MOCK_STATS.baseline,
+    target: stats?.target || MOCK_STATS.target,
+    realisasi: stats?.realisasi || MOCK_STATS.realisasi,
+    targetPersen: stats ? Math.round((stats.realisasi / stats.target) * 100) : MOCK_STATS.targetPersen,
+  };
 
   const donutData = [
-    { name: 'Realisasi', value: STATS.realisasi, color: '#F97316' },
-    { name: 'Baseline', value: STATS.baseline, color: '#FDBA74' },
-    { name: 'Sisa', value: STATS.target - STATS.realisasi, color: '#F3F4F6' },
+    { name: 'Realisasi', value: s.realisasi, color: '#F97316' },
+    { name: 'Baseline', value: s.baseline, color: '#FDBA74' },
+    { name: 'Sisa', value: s.target - s.realisasi, color: '#F3F4F6' },
   ];
 
   return (
     <div className="space-y-6">
       {/* Stats grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-4">
-        <StatCard icon={Users} label="Simpatisan" value={formatNumber(STATS.simpatisan.value)} growth={STATS.simpatisan.growth} />
-        <StatCard icon={UserCheck} label="Kader" value={formatNumber(STATS.kader.value)} growth={STATS.kader.growth} iconBg="bg-amber-50" iconColor="text-amber-600" />
-        <StatCard icon={ShieldCheck} label="Saksi" value={formatNumber(STATS.saksi.value)} growth={STATS.saksi.growth} iconBg="bg-orange-50" iconColor="text-orange-600" />
-        <StatCard icon={MapPin} label="Tim RW Tercover" value={formatNumber(STATS.rw.value)} sub={`dari ${formatNumber(STATS.rw.total)} RW`} iconBg="bg-amber-50" iconColor="text-amber-600" progress={STATS.rw.tercover} />
-        <StatCard icon={TargetIcon} label="Baseline Suara" value={formatNumber(STATS.baseline)} sub="Estimasi suara awal (Baseline)" iconBg="bg-orange-50" iconColor="text-orange-500" />
-        <StatCard icon={Flag} label="Target Suara" value={formatNumber(STATS.target)} sub="Target akhir pemenangan" iconBg="bg-red-50" iconColor="text-red-500" />
-        <StatCard icon={TrendingUp} label="Realisasi Saat Ini" value={formatNumber(STATS.realisasi)} sub={`${STATS.targetPersen}% dari target`} iconBg="bg-emerald-50" iconColor="text-emerald-500" />
+        <StatCard icon={Users} label="Simpatisan" value={formatNumber(s.simpatisan.value)} growth={s.simpatisan.growth} />
+        <StatCard icon={UserCheck} label="Kader" value={formatNumber(s.kader.value)} growth={s.kader.growth} iconBg="bg-amber-50" iconColor="text-amber-600" />
+        <StatCard icon={ShieldCheck} label="Saksi" value={formatNumber(s.saksi.value)} growth={s.saksi.growth} iconBg="bg-orange-50" iconColor="text-orange-600" />
+        <StatCard icon={MapPin} label="Tim RW Tercover" value={formatNumber(s.rw.value)} sub={`dari ${formatNumber(s.rw.total)} RW`} iconBg="bg-amber-50" iconColor="text-amber-600" progress={Math.min(100, Math.round(s.rw.tercover))} />
+        <StatCard icon={TargetIcon} label="Baseline Suara" value={formatNumber(s.baseline)} sub="Estimasi suara awal (Baseline)" iconBg="bg-orange-50" iconColor="text-orange-500" />
+        <StatCard icon={Flag} label="Target Suara" value={formatNumber(s.target)} sub="Target akhir pemenangan" iconBg="bg-red-50" iconColor="text-red-500" />
+        <StatCard icon={TrendingUp} label="Realisasi Saat Ini" value={formatNumber(s.realisasi)} sub={`${s.targetPersen}% dari target`} iconBg="bg-emerald-50" iconColor="text-emerald-500" />
       </div>
 
       {/* Charts row */}
@@ -73,19 +93,19 @@ const Dashboard = () => {
             <div className="flex-1 space-y-3">
               <div>
                 <p className="text-xs font-semibold text-gray-500">Target Akhir</p>
-                <p className="text-lg font-extrabold text-gray-900">{formatNumber(STATS.target)}</p>
+                <p className="text-lg font-extrabold text-gray-900">{formatNumber(s.target)}</p>
               </div>
               <div>
                 <p className="text-xs font-semibold text-gray-500">Realisasi Saat Ini</p>
-                <p className="text-lg font-extrabold text-orange-500">{formatNumber(STATS.realisasi)} <span className="text-xs">(68%)</span></p>
+                <p className="text-lg font-extrabold text-orange-500">{formatNumber(s.realisasi)} <span className="text-xs">({s.targetPersen}%)</span></p>
               </div>
               <div>
                 <p className="text-xs font-semibold text-gray-500">Baseline</p>
-                <p className="text-lg font-extrabold text-amber-500">{formatNumber(STATS.baseline)} <span className="text-xs">(48%)</span></p>
+                <p className="text-lg font-extrabold text-amber-500">{formatNumber(s.baseline)} <span className="text-xs">({Math.round(s.baseline/s.target*100)}%)</span></p>
               </div>
               <div>
                 <p className="text-xs font-semibold text-gray-500">Sisa Target</p>
-                <p className="text-lg font-extrabold text-gray-400">{formatNumber(STATS.target - STATS.realisasi)} <span className="text-xs">(32%)</span></p>
+                <p className="text-lg font-extrabold text-gray-400">{formatNumber(s.target - s.realisasi)} <span className="text-xs">({100-s.targetPersen}%)</span></p>
               </div>
             </div>
           </div>
@@ -150,11 +170,11 @@ const Dashboard = () => {
             <Input placeholder="Cari nama / no HP / alamat..." className="pl-9 h-9 text-xs" />
           </div>
           <div className="space-y-2 max-h-64 overflow-y-auto">
-            {SIMPATISAN.slice(0, 5).map(s => (
+            {simpatisanList.slice(0, 5).map(s => (
               <div key={s.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-orange-50 transition-colors">
                 <div className="min-w-0">
                   <p className="text-sm font-bold text-gray-900 truncate">{s.nama}</p>
-                  <p className="text-xs text-gray-500 font-medium">{s.hp} · {s.kecamatan}</p>
+                  <p className="text-xs text-gray-500 font-medium">{s.hp || '-'} · {s.kecamatan}</p>
                 </div>
                 <div className="flex gap-1">
                   <button className="p-1.5 rounded-lg hover:bg-white text-gray-500"><Edit className="w-3.5 h-3.5" /></button>
@@ -163,7 +183,7 @@ const Dashboard = () => {
               </div>
             ))}
           </div>
-          <p className="text-[11px] text-gray-400 font-semibold text-center mt-3">Menampilkan 1-5 dari 125.430 data</p>
+          <p className="text-[11px] text-gray-400 font-semibold text-center mt-3">Menampilkan 1-{Math.min(5, simpatisanList.length)} dari {simpatisanList.length} data</p>
         </SectionCard>
       </div>
 

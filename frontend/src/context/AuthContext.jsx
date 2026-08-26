@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { USERS } from '../mock/mockData';
+import { authApi } from '../lib/api';
 
 const AuthContext = createContext();
 
@@ -8,24 +8,40 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const stored = localStorage.getItem('sipekaes_user');
-    if (stored) setUser(JSON.parse(stored));
-    setLoading(false);
+    const token = localStorage.getItem('sipekaes_token');
+    const storedUser = localStorage.getItem('sipekaes_user');
+    if (token && storedUser) {
+      setUser(JSON.parse(storedUser));
+      // Verify token in background
+      authApi.me().then(res => {
+        setUser(res.data);
+        localStorage.setItem('sipekaes_user', JSON.stringify(res.data));
+      }).catch(() => {
+        localStorage.removeItem('sipekaes_token');
+        localStorage.removeItem('sipekaes_user');
+        setUser(null);
+      }).finally(() => setLoading(false));
+    } else {
+      setLoading(false);
+    }
   }, []);
 
-  const login = (username, password) => {
-    const found = USERS.find(u => u.username === username && u.password === password);
-    if (found) {
-      const { password: _, ...safe } = found;
-      setUser(safe);
-      localStorage.setItem('sipekaes_user', JSON.stringify(safe));
+  const login = async (username, password) => {
+    try {
+      const res = await authApi.login(username, password);
+      const { access_token, user: userData } = res.data;
+      localStorage.setItem('sipekaes_token', access_token);
+      localStorage.setItem('sipekaes_user', JSON.stringify(userData));
+      setUser(userData);
       return { success: true };
+    } catch (err) {
+      return { success: false, message: err.response?.data?.detail || 'Login gagal' };
     }
-    return { success: false, message: 'Username atau password salah' };
   };
 
   const logout = () => {
     setUser(null);
+    localStorage.removeItem('sipekaes_token');
     localStorage.removeItem('sipekaes_user');
   };
 

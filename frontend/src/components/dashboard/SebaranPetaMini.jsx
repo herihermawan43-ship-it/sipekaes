@@ -1,5 +1,5 @@
 import React from 'react';
-import { MapContainer, TileLayer, CircleMarker, Popup, Tooltip } from 'react-leaflet';
+import { MapContainer, TileLayer, Circle, CircleMarker, Popup, Tooltip } from 'react-leaflet';
 import { KECAMATAN_LIST } from '../../mock/mockData';
 import { formatNumber } from '../shared/UI';
 
@@ -35,33 +35,39 @@ const SebaranPetaMini = () => {
 
       <MapContainer center={center} zoom={9} style={{ height: '100%', width: '100%' }} scrollWheelZoom={false}>
         <TileLayer
-          attribution='&copy; OpenStreetMap'
-          url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+          url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution='&copy; OpenStreetMap contributors'
         />
         {KECAMATAN_LIST.map(k => {
           const pct = Math.round((k.realisasi / k.target) * 100);
           return (
-            <CircleMarker
-              key={k.name}
-              center={k.coords}
-              radius={12}
-              pathOptions={{ color: strengthColor(pct), fillColor: strengthColor(pct), fillOpacity: 0.7, weight: 2 }}
-            >
-              <Tooltip direction="top" offset={[0, -8]} opacity={1}>
-                <span className="font-bold">{k.name}</span> ({pct}%)
-              </Tooltip>
-              <Popup>
-                <div className="font-semibold text-xs">
-                  <p className="font-extrabold text-sm mb-1">{k.name}</p>
-                  <p>Simpatisan: <b>{formatNumber(k.simpatisan)}</b></p>
-                  <p>Kader: <b>{formatNumber(k.kader)}</b></p>
-                  <p>Saksi: <b>{formatNumber(k.saksi)}</b></p>
-                  <p>Baseline: <b>{formatNumber(k.baseline)}</b></p>
-                  <p>Realisasi: <b>{formatNumber(k.realisasi)}</b> ({pct}%)</p>
-                  <p>Target: <b>{formatNumber(k.target)}</b></p>
-                </div>
-              </Popup>
-            </CircleMarker>
+            <React.Fragment key={k.name}>
+              <Circle
+                center={k.coords}
+                radius={5000}
+                pathOptions={{ color: strengthColor(pct), fillColor: strengthColor(pct), fillOpacity: 0.3, weight: 1 }}
+              />
+              <CircleMarker
+                center={k.coords}
+                radius={7}
+                pathOptions={{ color: '#fff', fillColor: strengthColor(pct), fillOpacity: 1, weight: 2 }}
+              >
+                <Tooltip direction="top" offset={[0, -8]} opacity={1}>
+                  <span className="font-bold">{k.name}</span> ({pct}%)
+                </Tooltip>
+                <Popup>
+                  <div className="font-semibold text-xs">
+                    <p className="font-extrabold text-sm mb-1">{k.name}</p>
+                    <p>Simpatisan: <b>{formatNumber(k.simpatisan)}</b></p>
+                    <p>Kader: <b>{formatNumber(k.kader)}</b></p>
+                    <p>Saksi: <b>{formatNumber(k.saksi)}</b></p>
+                    <p>Baseline: <b>{formatNumber(k.baseline)}</b></p>
+                    <p>Realisasi: <b>{formatNumber(k.realisasi)}</b> ({pct}%)</p>
+                    <p>Target: <b>{formatNumber(k.target)}</b></p>
+                  </div>
+                </Popup>
+              </CircleMarker>
+            </React.Fragment>
           );
         })}
       </MapContainer>

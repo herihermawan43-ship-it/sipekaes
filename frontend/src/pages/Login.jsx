@@ -26,19 +26,17 @@ const Login = () => {
 
   if (user) return <Navigate to="/dashboard" replace />;
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    setTimeout(() => {
-      const result = login(username, password);
-      if (result.success) {
-        toast({ title: 'Login berhasil', description: 'Selamat datang di SiPekaeS' });
-        navigate('/dashboard');
-      } else {
-        toast({ title: 'Login gagal', description: result.message, variant: 'destructive' });
-      }
-      setLoading(false);
-    }, 500);
+    const result = await login(username, password);
+    if (result.success) {
+      toast({ title: 'Login berhasil', description: 'Selamat datang di SiPekaeS' });
+      navigate('/dashboard');
+    } else {
+      toast({ title: 'Login gagal', description: result.message, variant: 'destructive' });
+    }
+    setLoading(false);
   };
 
   const quickLogin = (uname) => {

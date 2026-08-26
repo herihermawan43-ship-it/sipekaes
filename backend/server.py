@@ -1,89 +1,278 @@
-from fastapi import FastAPI, APIRouter
+from fastapi import FastAPI, APIRouter, Depends, HTTPException, UploadFile, File, status
+from fastapi.responses import StreamingResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
 from pathlib import Path
-from pydantic import BaseModel, Field, ConfigDict
-from typing import List
-import uuid
-from datetime import datetime, timezone
+from typing import List, Optional
+from datetime import datetime, timedelta
+import io
+import openpyxl
 
+from models import (
+    LoginRequest, TokenResponse, UserOut, UserCreate,
+    Simpatisan, SimpatisanBase, Kader, KaderBase, Saksi, SaksiBase,
+    PengurusDPC, PengurusDPCBase, PengurusDPRA, PengurusDPRABase,
+    Pelopor, PeloporBase, RKI, RKIBase, uid
+)
+from auth import (
+    hash_password, verify_password, create_access_token, get_current_user
+)
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-# MongoDB connection
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
-# Create the main app without a prefix
-app = FastAPI()
-
-# Create a router with the /api prefix
+app = FastAPI(title="SiPekaeS API")
 api_router = APIRouter(prefix="/api")
 
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
-# Define Models
-class StatusCheck(BaseModel):
-    model_config = ConfigDict(extra="ignore")  # Ignore MongoDB's _id field
-    
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    client_name: str
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+# -------- helper --------
+def clean(doc):
+    if doc:
+        doc.pop('_id', None)
+        doc.pop('hashed_password', None)
+    return doc
 
-class StatusCheckCreate(BaseModel):
-    client_name: str
+def clean_list(cursor_list):
+    return [clean(d) for d in cursor_list]
 
-# Add your routes to the router instead of directly to app
+# ================ ROOT ================
 @api_router.get("/")
 async def root():
-    return {"message": "Hello World"}
+    return {"message": "SiPekaeS API v1.0"}
 
-@api_router.post("/status", response_model=StatusCheck)
-async def create_status_check(input: StatusCheckCreate):
-    status_dict = input.model_dump()
-    status_obj = StatusCheck(**status_dict)
-    
-    # Convert to dict and serialize datetime to ISO string for MongoDB
-    doc = status_obj.model_dump()
-    doc['timestamp'] = doc['timestamp'].isoformat()
-    
-    _ = await db.status_checks.insert_one(doc)
-    return status_obj
+# ================ AUTH ================
+@api_router.post("/auth/login", response_model=TokenResponse)
+async def login(payload: LoginRequest):
+    user = await db.users.find_one({"username": payload.username})
+    if not user or not verify_password(payload.password, user['hashed_password']):
+        raise HTTPException(status_code=401, detail="Username atau password salah")
+    token = create_access_token({"sub": user['username'], "id": user['id'], "role": user['role']})
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "user": UserOut(id=user['id'], username=user['username'], name=user['name'],
+                        role=user['role'], roleLabel=user.get('roleLabel'), avatar=user.get('avatar'))
+    }
 
-@api_router.get("/status", response_model=List[StatusCheck])
-async def get_status_checks():
-    # Exclude MongoDB's _id field from the query results
-    status_checks = await db.status_checks.find({}, {"_id": 0}).to_list(1000)
-    
-    # Convert ISO string timestamps back to datetime objects
-    for check in status_checks:
-        if isinstance(check['timestamp'], str):
-            check['timestamp'] = datetime.fromisoformat(check['timestamp'])
-    
-    return status_checks
+@api_router.get("/auth/me", response_model=UserOut)
+async def me(current=Depends(get_current_user)):
+    user = await db.users.find_one({"username": current['sub']})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return UserOut(id=user['id'], username=user['username'], name=user['name'],
+                   role=user['role'], roleLabel=user.get('roleLabel'), avatar=user.get('avatar'))
 
-# Include the router in the main app
+@api_router.get("/users", response_model=List[UserOut])
+async def list_users(current=Depends(get_current_user)):
+    users = await db.users.find().to_list(1000)
+    return [UserOut(id=u['id'], username=u['username'], name=u['name'],
+                    role=u['role'], roleLabel=u.get('roleLabel'), avatar=u.get('avatar')) for u in users]
+
+# ================ CRUD Generic Helper ================
+def make_crud(prefix: str, collection: str, base_model, full_model):
+    router = APIRouter()
+
+    @router.get(f"/{prefix}")
+    async def list_items(kecamatan: Optional[str] = None, current=Depends(get_current_user)):
+        query = {}
+        if kecamatan:
+            query['kecamatan'] = kecamatan
+        items = await db[collection].find(query).sort("tanggal", -1).to_list(5000)
+        return clean_list(items)
+
+    @router.post(f"/{prefix}")
+    async def create_item(data: base_model, current=Depends(get_current_user)):
+        doc = full_model(**data.dict()).dict()
+        await db[collection].insert_one(doc.copy())
+        return clean(doc)
+
+    @router.get(f"/{prefix}/{{item_id}}")
+    async def get_item(item_id: str, current=Depends(get_current_user)):
+        doc = await db[collection].find_one({"id": item_id})
+        if not doc:
+            raise HTTPException(status_code=404, detail="Not found")
+        return clean(doc)
+
+    @router.put(f"/{prefix}/{{item_id}}")
+    async def update_item(item_id: str, data: base_model, current=Depends(get_current_user)):
+        result = await db[collection].update_one({"id": item_id}, {"$set": data.dict()})
+        if result.matched_count == 0:
+            raise HTTPException(status_code=404, detail="Not found")
+        doc = await db[collection].find_one({"id": item_id})
+        return clean(doc)
+
+    @router.delete(f"/{prefix}/{{item_id}}")
+    async def delete_item(item_id: str, current=Depends(get_current_user)):
+        result = await db[collection].delete_one({"id": item_id})
+        if result.deleted_count == 0:
+            raise HTTPException(status_code=404, detail="Not found")
+        return {"ok": True}
+
+    return router
+
+# Register CRUD for each entity
+api_router.include_router(make_crud("simpatisan", "simpatisan", SimpatisanBase, Simpatisan))
+api_router.include_router(make_crud("kader", "kader", KaderBase, Kader))
+api_router.include_router(make_crud("saksi", "saksi", SaksiBase, Saksi))
+api_router.include_router(make_crud("pengurus-dpc", "pengurus_dpc", PengurusDPCBase, PengurusDPC))
+api_router.include_router(make_crud("pengurus-dpra", "pengurus_dpra", PengurusDPRABase, PengurusDPRA))
+api_router.include_router(make_crud("pelopor", "pelopor", PeloporBase, Pelopor))
+api_router.include_router(make_crud("rki", "rki", RKIBase, RKI))
+
+# ================ STATS (auto-computed) ================
+@api_router.get("/stats/summary")
+async def stats_summary(current=Depends(get_current_user)):
+    total_simpatisan = await db.simpatisan.count_documents({})
+    total_kader = await db.kader.count_documents({})
+    total_saksi = await db.saksi.count_documents({})
+    total_dpc = await db.pengurus_dpc.count_documents({})
+    total_dpra = await db.pengurus_dpra.count_documents({})
+    total_pelopor = await db.pelopor.count_documents({})
+    total_rki = await db.rki.count_documents({})
+
+    # RW tercover: unique combination of kecamatan+desa+rw across simpatisan/kader/saksi
+    rw_set = set()
+    async for d in db.simpatisan.find({"rw": {"$nin": ["", None]}}, {"kecamatan":1, "desa":1, "rw":1}):
+        rw_set.add(f"{d.get('kecamatan')}|{d.get('desa')}|{d.get('rw')}")
+    async for d in db.kader.find({"rw": {"$nin": ["", None]}}, {"kecamatan":1, "desa":1, "rw":1}):
+        rw_set.add(f"{d.get('kecamatan')}|{d.get('desa')}|{d.get('rw')}")
+    async for d in db.saksi.find({"rw": {"$nin": ["", None]}}, {"kecamatan":1, "desa":1, "rw":1}):
+        rw_set.add(f"{d.get('kecamatan')}|{d.get('desa')}|{d.get('rw')}")
+
+    rw_tercover = len(rw_set)
+    rw_total = 3000  # target Kab. Sukabumi
+
+    # simpatisan growth: added last 30 days
+    since = datetime.utcnow() - timedelta(days=30)
+    growth_simpatisan = await db.simpatisan.count_documents({"tanggal": {"$gte": since}})
+    growth_kader = await db.kader.count_documents({"tanggal": {"$gte": since}})
+    growth_saksi = await db.saksi.count_documents({"tanggal": {"$gte": since}})
+
+    return {
+        "simpatisan": {"value": total_simpatisan, "growth": growth_simpatisan},
+        "kader": {"value": total_kader, "growth": growth_kader},
+        "saksi": {"value": total_saksi, "growth": growth_saksi},
+        "pengurus_dpc": total_dpc,
+        "pengurus_dpra": total_dpra,
+        "pelopor": total_pelopor,
+        "rki": total_rki,
+        "rw": {"value": rw_tercover, "total": rw_total, "tercover": round((rw_tercover / rw_total) * 100, 1) if rw_total else 0},
+        "kecamatan": 47,
+        "desa": 381,
+        "baseline": 600000,
+        "target": 1250000,
+        "realisasi": 850320,
+    }
+
+@api_router.get("/stats/per-kecamatan")
+async def stats_per_kecamatan(current=Depends(get_current_user)):
+    pipeline_s = [{"$group": {"_id": "$kecamatan", "count": {"$sum": 1}}}]
+    result = {}
+    for coll_name, key in [("simpatisan", "simpatisan"), ("kader", "kader"), ("saksi", "saksi")]:
+        async for row in db[coll_name].aggregate(pipeline_s):
+            kec = row['_id']
+            if kec:
+                result.setdefault(kec, {}).update({key: row['count']})
+    return result
+
+# ================ EXCEL IMPORT / EXPORT ================
+@api_router.get("/simpatisan/template/excel")
+async def download_template(current=Depends(get_current_user)):
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Template Simpatisan"
+    headers = ["nama", "nik", "hp", "kecamatan", "desa", "rw", "rt", "alamat"]
+    ws.append(headers)
+    # sample rows
+    ws.append(["Contoh Nama", "3202010000000001", "081234567890", "Cikembar", "Mekarjaya", "RW 04", "RT 02", "Jl. Contoh No. 1"])
+    for col in ws.columns:
+        max_len = max(len(str(c.value or "")) for c in col)
+        ws.column_dimensions[col[0].column_letter].width = max(max_len + 2, 12)
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=template_simpatisan.xlsx"}
+    )
+
+@api_router.post("/simpatisan/import/excel")
+async def import_excel(file: UploadFile = File(...), current=Depends(get_current_user)):
+    if not file.filename.endswith(('.xlsx', '.xls')):
+        raise HTTPException(status_code=400, detail="File harus berformat Excel (.xlsx)")
+    content = await file.read()
+    try:
+        wb = openpyxl.load_workbook(io.BytesIO(content), data_only=True)
+        ws = wb.active
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Gagal membaca file: {str(e)}")
+
+    rows = list(ws.iter_rows(values_only=True))
+    if len(rows) < 2:
+        raise HTTPException(status_code=400, detail="File kosong")
+
+    headers = [str(h).lower().strip() if h else "" for h in rows[0]]
+    required = ['nama', 'kecamatan']
+    for r in required:
+        if r not in headers:
+            raise HTTPException(status_code=400, detail=f"Kolom '{r}' wajib ada")
+
+    inserted = 0
+    errors = []
+    docs = []
+    for i, row in enumerate(rows[1:], start=2):
+        if not any(row):
+            continue
+        try:
+            data = {}
+            for h, v in zip(headers, row):
+                if h and v is not None:
+                    data[h] = str(v).strip()
+            if not data.get('nama') or not data.get('kecamatan'):
+                errors.append(f"Baris {i}: nama/kecamatan kosong")
+                continue
+            doc = Simpatisan(
+                nama=data.get('nama', ''),
+                nik=data.get('nik', ''),
+                hp=data.get('hp', ''),
+                kecamatan=data.get('kecamatan', ''),
+                desa=data.get('desa', ''),
+                rw=data.get('rw', ''),
+                rt=data.get('rt', ''),
+                alamat=data.get('alamat', ''),
+                status='aktif',
+            ).dict()
+            docs.append(doc)
+            inserted += 1
+        except Exception as e:
+            errors.append(f"Baris {i}: {str(e)}")
+
+    if docs:
+        await db.simpatisan.insert_many(docs)
+
+    return {"inserted": inserted, "errors": errors[:20], "total_errors": len(errors)}
+
+# ================ Include router ================
 app.include_router(api_router)
 
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
-
 @app.on_event("shutdown")
-async def shutdown_db_client():
+async def shutdown():
     client.close()

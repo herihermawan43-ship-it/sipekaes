@@ -1,8 +1,8 @@
 import React from 'react';
-import { MapContainer, TileLayer, CircleMarker, Popup, Tooltip } from 'react-leaflet';
+import { MapContainer, TileLayer, Circle, CircleMarker, Popup, Tooltip, LayersControl } from 'react-leaflet';
 import { KECAMATAN_LIST } from '../mock/mockData';
 import { formatNumber } from '../components/shared/UI';
-import { Filter } from 'lucide-react';
+import { Filter, Layers } from 'lucide-react';
 import { Button } from '../components/ui/button';
 
 const strengthColor = (pct) => {
@@ -45,36 +45,81 @@ const SebaranPeta = () => (
       <div className="flex items-center justify-between mb-4">
         <div>
           <h3 className="text-xl font-extrabold">Peta Sebaran Kekuatan - Kab. Sukabumi</h3>
-          <p className="text-sm text-gray-500 font-medium">Klik marker untuk melihat detail per kecamatan</p>
+          <p className="text-sm text-gray-500 font-medium">Area choropleth menunjukkan zona kekuatan tiap kecamatan. Klik untuk detail.</p>
         </div>
         <Button variant="outline" className="gap-2"><Filter className="w-4 h-4" /> Filter</Button>
       </div>
 
-      <div className="rounded-2xl overflow-hidden" style={{ height: 560 }}>
+      <div className="rounded-2xl overflow-hidden relative" style={{ height: 600 }}>
+        <div className="absolute top-3 right-3 z-[400] bg-white rounded-xl shadow-md p-3 text-xs">
+          <p className="font-extrabold mb-2 flex items-center gap-1"><Layers className="w-3.5 h-3.5" /> Kekuatan Wilayah</p>
+          <div className="space-y-1">
+            {[
+              { c: '#059669', l: 'Sangat Kuat (80-100%)' },
+              { c: '#84CC16', l: 'Kuat (60-79%)' },
+              { c: '#EAB308', l: 'Sedang (40-59%)' },
+              { c: '#F97316', l: 'Lemah (20-39%)' },
+              { c: '#DC2626', l: 'Sangat Lemah (0-19%)' },
+            ].map(x => (
+              <div key={x.l} className="flex items-center gap-2 font-semibold">
+                <span className="w-3 h-3 rounded" style={{ background: x.c }}></span>
+                {x.l}
+              </div>
+            ))}
+          </div>
+        </div>
+
         <MapContainer center={[-6.95, 106.85]} zoom={10} style={{ height: '100%', width: '100%' }}>
-          <TileLayer url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" />
+          <LayersControl position="topleft">
+            <LayersControl.BaseLayer checked name="Peta Standar">
+              <TileLayer url="https://tile.openstreetmap.org/{z}/{x}/{y}.png" attribution='&copy; OpenStreetMap contributors' />
+            </LayersControl.BaseLayer>
+            <LayersControl.BaseLayer name="Peta Satelit">
+              <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" attribution='&copy; Esri' />
+            </LayersControl.BaseLayer>
+            <LayersControl.BaseLayer name="Peta Topografi">
+              <TileLayer url="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png" attribution='&copy; OpenTopoMap' />
+            </LayersControl.BaseLayer>
+          </LayersControl>
+
+          {/* Choropleth-like coverage circles */}
+          {KECAMATAN_LIST.map(k => {
+            const pct = Math.round((k.realisasi/k.target)*100);
+            return (
+              <Circle
+                key={`c-${k.name}`}
+                center={k.coords}
+                radius={5500}
+                pathOptions={{ color: strengthColor(pct), fillColor: strengthColor(pct), fillOpacity: 0.35, weight: 1.5 }}
+              />
+            );
+          })}
+          {/* Marker labels */}
           {KECAMATAN_LIST.map(k => {
             const pct = Math.round((k.realisasi/k.target)*100);
             return (
               <CircleMarker
                 key={k.name}
                 center={k.coords}
-                radius={14}
-                pathOptions={{ color: strengthColor(pct), fillColor: strengthColor(pct), fillOpacity: 0.75, weight: 2 }}
+                radius={9}
+                pathOptions={{ color: '#fff', fillColor: strengthColor(pct), fillOpacity: 1, weight: 2 }}
               >
-                <Tooltip direction="top" offset={[0, -8]} opacity={1}>
-                  <b>{k.name}</b> - {strengthLabel(pct)} ({pct}%)
+                <Tooltip direction="top" offset={[0, -8]} opacity={1} permanent={false}>
+                  <b>{k.name}</b> — {strengthLabel(pct)} ({pct}%)
                 </Tooltip>
                 <Popup>
-                  <div className="font-semibold text-xs min-w-[180px]">
+                  <div className="font-semibold text-xs min-w-[200px]">
                     <p className="font-extrabold text-sm mb-1 text-orange-600">{k.name}</p>
+                    <div className="inline-block px-2 py-0.5 rounded text-white text-[10px] font-bold mb-2" style={{background: strengthColor(pct)}}>
+                      {strengthLabel(pct)} — {pct}%
+                    </div>
                     <div className="space-y-0.5">
                       <p>Simpatisan: <b>{formatNumber(k.simpatisan)}</b></p>
                       <p>Kader: <b>{formatNumber(k.kader)}</b></p>
                       <p>Saksi: <b>{formatNumber(k.saksi)}</b></p>
                       <hr className="my-1"/>
                       <p>Baseline: <b>{formatNumber(k.baseline)}</b></p>
-                      <p>Realisasi: <b className="text-orange-600">{formatNumber(k.realisasi)}</b> ({pct}%)</p>
+                      <p>Realisasi: <b className="text-orange-600">{formatNumber(k.realisasi)}</b></p>
                       <p>Target: <b>{formatNumber(k.target)}</b></p>
                     </div>
                   </div>

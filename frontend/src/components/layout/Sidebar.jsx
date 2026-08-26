@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, UserCheck, ShieldCheck, Network,
   MapPin, Building2, Home, Map, FileText, CalendarDays,
   Calendar, ListTodo, Target, TrendingUp, Flag, Vote,
-  UserCog, Settings, LifeBuoy, Sparkles
+  UserCog, Settings, LifeBuoy, Sparkles, Crown, Building, GraduationCap, Users2
 } from 'lucide-react';
 
 const menuSections = [
@@ -16,6 +16,15 @@ const menuSections = [
       { to: '/kader', icon: UserCheck, label: 'Kader' },
       { to: '/saksi', icon: ShieldCheck, label: 'Saksi' },
       { to: '/struktur', icon: Network, label: 'Struktur Jaringan' },
+    ]
+  },
+  {
+    title: 'STRUKTUR ORGANISASI',
+    items: [
+      { to: '/pengurus-dpc', icon: Crown, label: 'Pengurus DPC' },
+      { to: '/pengurus-dpra', icon: Building, label: 'Pengurus DPRA' },
+      { to: '/pelopor', icon: GraduationCap, label: 'Anggota Pelopor' },
+      { to: '/rki', icon: Users2, label: 'Anggota RKI' },
     ]
   },
   {

@@ -16,6 +16,7 @@ import SebaranPeta from './pages/SebaranPeta';
 import { Kegiatan, Agenda, Tugas } from './pages/Aktivitas';
 import { TargetSuara, ProgressSuara, BaselineSuara, QuickCount } from './pages/SuaraPages';
 import { Pengguna, Pengaturan } from './pages/UserSettings';
+import { PengurusDPC, PengurusDPRA, AnggotaPelopor, AnggotaRKI } from './pages/OrganisasiPages';
 import { useAuth } from './context/AuthContext';
 
 const PageWrap = ({ title, subtitle, children }) => {
@@ -34,6 +35,10 @@ const routes = [
   { path: '/kader', title: 'Kader', subtitle: 'Data kader & pengurus organisasi', el: <Kader /> },
   { path: '/saksi', title: 'Saksi TPS', subtitle: 'Data saksi Tempat Pemungutan Suara', el: <Saksi /> },
   { path: '/struktur', title: 'Struktur Jaringan', subtitle: 'Hierarki organisasi pemenangan', el: <StrukturJaringan /> },
+  { path: '/pengurus-dpc', title: 'Pengurus DPC', subtitle: 'Struktur pengurus Dewan Pimpinan Cabang', el: <PengurusDPC /> },
+  { path: '/pengurus-dpra', title: 'Pengurus DPRA', subtitle: 'Struktur pengurus Dewan Pimpinan Ranting', el: <PengurusDPRA /> },
+  { path: '/pelopor', title: 'Anggota Pelopor', subtitle: 'Data anggota Pelopor per wilayah', el: <AnggotaPelopor /> },
+  { path: '/rki', title: 'Anggota RKI', subtitle: 'Data anggota Relawan Kader Independen', el: <AnggotaRKI /> },
   { path: '/kecamatan', title: 'Kecamatan', subtitle: '47 Kecamatan di Kabupaten Sukabumi', el: <Kecamatan /> },
   { path: '/desa', title: 'Desa / Kelurahan', subtitle: '381 Desa/Kelurahan aktif', el: <Desa /> },
   { path: '/rw', title: 'RW', subtitle: 'Sebaran RW di seluruh wilayah', el: <RW /> },
