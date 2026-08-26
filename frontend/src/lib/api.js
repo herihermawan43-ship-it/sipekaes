@@ -26,6 +26,7 @@ api.interceptors.response.use(
 export const authApi = {
   login: (username, password) => api.post('/auth/login', { username, password }),
   me: () => api.get('/auth/me'),
+  updateMe: (data) => api.put('/auth/me', data),
 };
 
 export const crud = (entity) => ({
@@ -39,6 +40,9 @@ export const crud = (entity) => ({
 export const simpatisanApi = crud('simpatisan');
 export const kaderApi = crud('kader');
 export const saksiApi = crud('saksi');
+export const kegiatanApi = crud('kegiatan');
+export const agendaApi = crud('agenda');
+export const tugasApi = crud('tugas');
 export const usersApi = {
   list: () => api.get('/users'),
   create: (data) => api.post('/users', data),

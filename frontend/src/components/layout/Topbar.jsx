@@ -1,22 +1,44 @@
 import React, { useState } from 'react';
 import { Menu, Bell, ChevronDown, CalendarDays, LogOut, User } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { authApi } from '../../lib/api';
+import { toast } from '../../hooks/use-toast';
 import { NOTIFIKASI } from '../../mock/mockData';
 import { useNavigate } from 'react-router-dom';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger
 } from '../ui/dropdown-menu';
+import EntityFormDialog from '../EntityFormDialog';
+
+const PROFIL_FIELDS = [
+  { name: 'name', label: 'Nama Lengkap', required: true },
+  { name: 'roleLabel', label: 'Label Role', placeholder: 'mis. Admin Wilayah Utara' },
+  { name: 'avatar', label: 'URL Foto Profil', placeholder: 'https://...' },
+];
 
 const Topbar = ({ title, subtitle, onToggle, onMobileToggle }) => {
-  const { user, logout } = useAuth();
+  const { user, logout, updateUser } = useAuth();
   const navigate = useNavigate();
   const [pemilu, setPemilu] = useState('Pemilu 2029');
+  const [profilOpen, setProfilOpen] = useState(false);
   const unread = NOTIFIKASI.filter(n => n.unread).length;
 
   const handleLogout = () => {
     logout();
     navigate('/login');
+  };
+
+  const handleUpdateProfil = async (data) => {
+    try {
+      const res = await authApi.updateMe(data);
+      updateUser(res.data);
+      toast({ title: 'Profil berhasil diperbarui' });
+      return true;
+    } catch (e) {
+      toast({ title: 'Gagal memperbarui profil', description: e.response?.data?.detail || e.message, variant: 'destructive' });
+      return false;
+    }
   };
 
   return (
@@ -94,11 +116,20 @@ const Topbar = ({ title, subtitle, onToggle, onMobileToggle }) => {
             <DropdownMenuSeparator className="sm:hidden" />
             <DropdownMenuLabel className="hidden sm:block">Akun Saya</DropdownMenuLabel>
             <DropdownMenuSeparator className="hidden sm:block" />
-            <DropdownMenuItem><User className="w-4 h-4 mr-2" /> Profil</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setProfilOpen(true)}><User className="w-4 h-4 mr-2" /> Profil</DropdownMenuItem>
             <DropdownMenuItem onClick={handleLogout} className="text-red-600"><LogOut className="w-4 h-4 mr-2" /> Keluar</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      <EntityFormDialog
+        open={profilOpen} onOpenChange={setProfilOpen}
+        title="Edit Profil"
+        description="Perbarui nama, label role, dan foto profil Anda."
+        fields={PROFIL_FIELDS}
+        initialData={user}
+        onSubmit={handleUpdateProfil}
+      />
     </header>
   );
 };
