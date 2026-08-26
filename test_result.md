@@ -344,6 +344,19 @@ backend:
         agent: "testing"
         comment: "✅ RESET DEMO DATA TESTS PASSED (5/5). POST /api/admin/reset-demo-data with admininput token correctly returns 403 (only super_admin). POST with super_admin token returns 200 with deleted counts: {simpatisan:10, kader:10, saksi:6, wilayah_target:15}. GET /api/simpatisan, /api/kader, /api/saksi all return empty arrays after reset. Demo data successfully restored by running python /app/backend/seed.py (verified: simpatisan:9, kader:10, saksi:6, wilayah_target:15). Reset endpoint working correctly."
 
+  - task: "Quick Count CRUD and Summary"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ ALL QUICK COUNT TESTS PASSED (42/42). Test 1 - CRUD as superadmin (10/10): GET /api/quick-count returns 200 with array. POST creates entry with id, submitted_by=superadmin, submitted_at. POST with same tps+kecamatan correctly updates (upsert) without creating duplicate. PUT updates entry successfully. Test 2 - Summary (17/17): Created 3 test entries. GET /api/quick-count/summary returns 200 with all required fields (total_tps_terlapor, target_tps, coverage_persen, total_suara_sah, total_suara_tidak_sah, total_dpt, partisipasi_persen). paslon array has 3 items with nama/suara/persen/warna. per_kecamatan is array. total_suara_sah matches sum of paslon suara. Test 3 - Saksi role restrictions (6/6): Login as saksi/admin123 successful. GET /api/quick-count as saksi returns only entries for tps='TPS 01' AND kecamatan='Cikembar' (area filtering working). POST as saksi for own area returns 200 with submitted_by=saksi. DELETE as saksi correctly returns 403 (only super_admin/admin_pusat can delete). Test 4 - Auth required (2/2): GET /api/quick-count without token returns 401. GET /api/quick-count/summary without token returns 401. Cleanup: All 4 test entries deleted successfully. All Quick Count endpoints working perfectly."
+
+
 frontend:
   - task: "Login page + Dashboard + all pages"
     implemented: true
@@ -372,16 +385,9 @@ test_plan:
 agent_communication:
   - agent: "main"
     message: |
-      Bug fixes applied — need testing:
-      1. **Map legend position**: Legend "Kekuatan Dukungan" was overlapping the map. Moved to horizontal below the map on both Sebaran Peta page (/peta) and Dashboard mini map. Verify legend is now BELOW map (not overlapping).
-      2. **New endpoint GET /api/stats/kecamatan-detail**: Returns per-kecamatan aggregated counts with DEDUP logic (Kader > Saksi > Simpatisan priority). Person counted once — if in Kader collection AND Saksi collection with same NIK OR nama+kecamatan, counted only as Kader.
-         - Test: superadmin token, GET /api/stats/kecamatan-detail → returns array with fields: kecamatan, kader, saksi, simpatisan, total_unik, dpc, dpra, pelopor, rki, baseline, target, realisasi
-      3. **New endpoint GET /api/stats/desa-detail**: Returns per-desa aggregation with rw_count field.
-         - Test: superadmin token, GET /api/stats/desa-detail → array with kecamatan, desa, kader, saksi, simpatisan, total, rw_count, rws fields
-      4. **New endpoint GET /api/stats/rw-detail**: Returns per-RW aggregation.
-         - Test: superadmin token, GET /api/stats/rw-detail → array with kecamatan, desa, rw, kader, saksi, simpatisan, total fields
-      5. **Dedup verification**: Create a Kader with nama="TestDup Person" nik="9999" kecamatan="Cikembar". Then create a Saksi with SAME nik. GET /stats/kecamatan-detail for Cikembar should show kader+=1, saksi should NOT increment for this person (dedup). Cleanup after.
-      All authenticated endpoints require Bearer token.
+      NEW: Quick Count endpoints with real-time aggregation & role-based access.
+      Test as instructed. Superadmin password is `SiPekaeS@2025`, saksi password is `admin123`.
+      Saksi user has kecamatan_kerja=Cikembar, tps_kerja=TPS 01 - should only see own TPS data.
   - agent: "testing"
     message: |
       ✅ BACKEND TESTING COMPLETE - ALL TESTS PASSED (50/50)
@@ -544,3 +550,46 @@ agent_communication:
       🎉 ALL NEW BACKEND ENDPOINTS WORKING PERFECTLY!
       All authentication, CRUD, permissions, Excel import/export, and admin endpoints tested and verified.
       Backend is production-ready with no issues found.
+  - agent: "testing"
+    message: |
+      ✅ QUICK COUNT ENDPOINTS TESTING COMPLETE - ALL TESTS PASSED (42/42)
+      
+      Comprehensive testing of NEW Quick Count endpoints for SiPekaeS:
+      
+      1. ✅ Quick Count CRUD as superadmin (10/10 tests passed)
+         - GET /api/quick-count → 200 with array (initially empty)
+         - POST /api/quick-count → 200, creates entry with id, submitted_by=superadmin, submitted_at
+         - POST with SAME tps+kecamatan → 200, correctly updates (upsert) without creating duplicate
+         - Verified count remains same after upsert (no duplicate created)
+         - PUT /api/quick-count/{id} → 200, updates entry successfully
+         - All CRUD operations working correctly
+      
+      2. ✅ Quick Count Summary (17/17 tests passed)
+         - Created 3 test entries with different TPS in different kecamatan
+         - GET /api/quick-count/summary → 200 with complete summary object
+         - Verified all required fields present: total_tps_terlapor, target_tps, coverage_persen, total_suara_sah, total_suara_tidak_sah, total_dpt, partisipasi_persen
+         - paslon array has 3 items, each with nama, suara, persen, warna
+         - per_kecamatan is array with kecamatan aggregation
+         - total_suara_sah correctly matches sum of paslon 1+2+3
+         - All calculations and aggregations working correctly
+      
+      3. ✅ Saksi Role Restrictions (6/6 tests passed)
+         - Login as saksi/admin123 → success (tps_kerja='TPS 01', kecamatan_kerja='Cikembar')
+         - GET /api/quick-count as saksi → 200, returns only entries for tps='TPS 01' AND kecamatan='Cikembar'
+         - Area + TPS filtering working correctly for saksi role
+         - POST /api/quick-count as saksi (own area) → 200, upsert works, submitted_by=saksi
+         - DELETE /api/quick-count/{id} as saksi → 403 (only super_admin/admin_pusat can delete)
+         - Role-based permissions working correctly
+      
+      4. ✅ Auth Required (2/2 tests passed)
+         - GET /api/quick-count without token → 401
+         - GET /api/quick-count/summary without token → 401
+         - Authentication required for all endpoints
+      
+      5. ✅ Cleanup (4/4 deletions successful)
+         - All test entries deleted successfully
+      
+      🎉 ALL QUICK COUNT ENDPOINTS WORKING PERFECTLY!
+      All CRUD operations, summary aggregation, role-based filtering, and permissions tested and verified.
+      Backend Quick Count feature is production-ready with no issues found.
+

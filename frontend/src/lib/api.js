@@ -64,6 +64,14 @@ export const wilayahTargetApi = {
   update: (id, data) => api.put(`/wilayah-target/${id}`, data),
 };
 
+export const quickCountApi = {
+  list: () => api.get('/quick-count'),
+  create: (data) => api.post('/quick-count', data),
+  update: (id, data) => api.put(`/quick-count/${id}`, data),
+  remove: (id) => api.delete(`/quick-count/${id}`),
+  summary: () => api.get('/quick-count/summary'),
+};
+
 export const statsApi = {
   summary: () => api.get('/stats/summary'),
   perKecamatan: () => api.get('/stats/per-kecamatan'),

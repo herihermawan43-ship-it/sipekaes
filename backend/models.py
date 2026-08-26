@@ -131,3 +131,20 @@ class WilayahTargetBase(BaseModel):
 class WilayahTarget(WilayahTargetBase):
     id: str = Field(default_factory=uid)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+# ============ QUICK COUNT (input per TPS oleh saksi) ============
+class QuickCountBase(BaseModel):
+    tps: str
+    kecamatan: str
+    desa: Optional[str] = ""
+    paslon_1: int = 0  # suara sah paslon 1
+    paslon_2: int = 0
+    paslon_3: int = 0
+    suara_tidak_sah: int = 0
+    dpt: int = 0  # daftar pemilih tetap TPS ini
+    catatan: Optional[str] = ""
+
+class QuickCount(QuickCountBase):
+    id: str = Field(default_factory=uid)
+    submitted_by: Optional[str] = ""  # username saksi
+    submitted_at: datetime = Field(default_factory=datetime.utcnow)

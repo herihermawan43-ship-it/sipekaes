@@ -15,7 +15,7 @@ from pydantic import BaseModel
 from models import (
     LoginRequest, TokenResponse, UserOut,
     Simpatisan, SimpatisanBase, Kader, KaderBase, Saksi, SaksiBase,
-    WilayahTarget, WilayahTargetBase, uid
+    WilayahTarget, WilayahTargetBase, QuickCount, QuickCountBase, uid
 )
 from auth import (
     hash_password, verify_password, create_access_token, get_current_user
@@ -326,6 +326,98 @@ async def delete_wilayah_target(item_id: str, current=Depends(get_current_user))
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Not found")
     return {"ok": True}
+
+# ================ QUICK COUNT ================
+@api_router.get("/quick-count")
+async def list_quick_count(current=Depends(get_current_user)):
+    q = await get_area_filter(current)
+    # For saksi role, further restrict to own tps
+    if current.get('role') == 'saksi':
+        user = await db.users.find_one({"username": current['sub']})
+        if user and user.get('tps_kerja'):
+            q['tps'] = user['tps_kerja']
+    items = await db.quick_count.find(q).sort("submitted_at", -1).to_list(20000)
+    return clean_list(items)
+
+@api_router.post("/quick-count")
+async def create_quick_count(data: QuickCountBase, current=Depends(get_current_user)):
+    # Upsert per (kecamatan|tps) - satu TPS satu entry
+    existing = await db.quick_count.find_one({"kecamatan": data.kecamatan, "tps": data.tps})
+    if existing:
+        update = {**data.dict(), "submitted_by": current.get('sub'), "submitted_at": datetime.utcnow()}
+        await db.quick_count.update_one({"id": existing['id']}, {"$set": update})
+        doc = await db.quick_count.find_one({"id": existing['id']})
+        return clean(doc)
+    doc = QuickCount(**data.dict(), submitted_by=current.get('sub','')).dict()
+    await db.quick_count.insert_one(doc.copy())
+    return clean(doc)
+
+@api_router.put("/quick-count/{item_id}")
+async def update_quick_count(item_id: str, data: QuickCountBase, current=Depends(get_current_user)):
+    result = await db.quick_count.update_one(
+        {"id": item_id},
+        {"$set": {**data.dict(), "submitted_by": current.get('sub'), "submitted_at": datetime.utcnow()}}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Not found")
+    doc = await db.quick_count.find_one({"id": item_id})
+    return clean(doc)
+
+@api_router.delete("/quick-count/{item_id}")
+async def delete_quick_count(item_id: str, current=Depends(get_current_user)):
+    if current.get('role') not in ('super_admin', 'admin_pusat'):
+        raise HTTPException(status_code=403, detail="Hanya admin yang bisa hapus")
+    result = await db.quick_count.delete_one({"id": item_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Not found")
+    return {"ok": True}
+
+@api_router.get("/quick-count/summary")
+async def quick_count_summary(current=Depends(get_current_user)):
+    """Aggregate quick count results — total suara per paslon + persentase."""
+    items = await db.quick_count.find().to_list(50000)
+    # Total TPS covered
+    total_tps = len(items)
+    # Count all saksi entries in system (target TPS)
+    target_tps = await db.saksi.count_documents({})
+    total = {"paslon_1": 0, "paslon_2": 0, "paslon_3": 0, "tidak_sah": 0, "dpt": 0}
+    per_kec = {}
+    for it in items:
+        total["paslon_1"] += it.get('paslon_1', 0) or 0
+        total["paslon_2"] += it.get('paslon_2', 0) or 0
+        total["paslon_3"] += it.get('paslon_3', 0) or 0
+        total["tidak_sah"] += it.get('suara_tidak_sah', 0) or 0
+        total["dpt"] += it.get('dpt', 0) or 0
+        kec = it.get('kecamatan', 'Lain')
+        e = per_kec.setdefault(kec, {"kecamatan": kec, "paslon_1": 0, "paslon_2": 0, "paslon_3": 0, "tidak_sah": 0, "tps_terlapor": 0})
+        e["paslon_1"] += it.get('paslon_1', 0) or 0
+        e["paslon_2"] += it.get('paslon_2', 0) or 0
+        e["paslon_3"] += it.get('paslon_3', 0) or 0
+        e["tidak_sah"] += it.get('suara_tidak_sah', 0) or 0
+        e["tps_terlapor"] += 1
+
+    total_sah = total["paslon_1"] + total["paslon_2"] + total["paslon_3"]
+    total_semua = total_sah + total["tidak_sah"]
+
+    def pct(v, base):
+        return round((v / base) * 100, 2) if base else 0
+
+    return {
+        "total_tps_terlapor": total_tps,
+        "target_tps": max(target_tps, total_tps),
+        "coverage_persen": pct(total_tps, max(target_tps, 1)),
+        "total_suara_sah": total_sah,
+        "total_suara_tidak_sah": total["tidak_sah"],
+        "total_suara": total_semua,
+        "total_dpt": total["dpt"],
+        "partisipasi_persen": pct(total_semua, total["dpt"]) if total["dpt"] else 0,
+        "paslon": [
+            {"nama": "Paslon 1", "suara": total["paslon_1"], "persen": pct(total["paslon_1"], total_sah), "warna": "#EF4444"},
+            {"nama": "Paslon 2 (Kami)", "suara": total["paslon_2"], "persen": pct(total["paslon_2"], total_sah), "warna": "#F97316"},
+            {"nama": "Paslon 3", "suara": total["paslon_3"], "persen": pct(total["paslon_3"], total_sah), "warna": "#3B82F6"},
+        ],
+        "per_kecamatan": sorted(per_kec.values(), key=lambda x: x['kecamatan']),
+    }
 
 # ================ STATS ================
 @api_router.get("/stats/summary")
