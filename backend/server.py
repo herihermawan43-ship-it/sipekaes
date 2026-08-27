@@ -15,7 +15,8 @@ from pydantic import BaseModel
 from models import (
     LoginRequest, TokenResponse, UserOut,
     Simpatisan, SimpatisanBase, Kader, KaderBase, Saksi, SaksiBase,
-    WilayahTarget, WilayahTargetBase, QuickCount, QuickCountBase, uid
+    WilayahTarget, WilayahTargetBase, QuickCount, QuickCountBase, uid,
+    Kegiatan, KegiatanBase, Agenda, AgendaBase, Tugas, TugasBase
 )
 from auth import (
     hash_password, verify_password, create_access_token, get_current_user
@@ -103,6 +104,27 @@ async def me(current=Depends(get_current_user)):
         kecamatan_kerja=user.get('kecamatan_kerja', ''),
         desa_kerja=user.get('desa_kerja', ''),
         tps_kerja=user.get('tps_kerja', ''),
+    )
+
+class ProfileUpdatePayload(BaseModel):
+    name: str
+    roleLabel: Optional[str] = ""
+    avatar: Optional[str] = ""
+
+@api_router.put("/auth/me", response_model=UserOut)
+async def update_me(payload: ProfileUpdatePayload, current=Depends(get_current_user)):
+    user = await db.users.find_one({"username": current['sub']})
+    if not user:
+        raise HTTPException(status_code=404, detail="User tidak ditemukan")
+    update = {"name": payload.name, "roleLabel": payload.roleLabel or user.get('roleLabel'), "avatar": payload.avatar or ""}
+    await db.users.update_one({"id": user['id']}, {"$set": update})
+    u = await db.users.find_one({"id": user['id']})
+    return UserOut(
+        id=u['id'], username=u['username'], name=u['name'],
+        role=u['role'], roleLabel=u.get('roleLabel'), avatar=u.get('avatar'),
+        kecamatan_kerja=u.get('kecamatan_kerja', ''),
+        desa_kerja=u.get('desa_kerja', ''),
+        tps_kerja=u.get('tps_kerja', ''),
     )
 
 @api_router.get("/users", response_model=List[UserOut])
@@ -219,13 +241,13 @@ async def reset_demo_data(current=Depends(get_current_user)):
     return {"ok": True, "deleted": counts, "message": "Semua data demo terhapus. User tetap tersimpan."}
 
 # ================ CRUD Simpatisan / Kader / Saksi ================
-def make_crud(prefix: str, collection: str, base_model, full_model):
+def make_crud(prefix: str, collection: str, base_model, full_model, sort_field: str = "tanggal", use_area_filter: bool = True):
     router = APIRouter()
 
     @router.get(f"/{prefix}")
     async def list_items(current=Depends(get_current_user)):
-        q = await get_area_filter(current)
-        items = await db[collection].find(q).sort("tanggal", -1).to_list(10000)
+        q = await get_area_filter(current) if use_area_filter else {}
+        items = await db[collection].find(q).sort(sort_field, -1).to_list(10000)
         return clean_list(items)
 
     @router.post(f"/{prefix}")
@@ -261,6 +283,11 @@ def make_crud(prefix: str, collection: str, base_model, full_model):
 api_router.include_router(make_crud("simpatisan", "simpatisan", SimpatisanBase, Simpatisan))
 api_router.include_router(make_crud("kader", "kader", KaderBase, Kader))
 api_router.include_router(make_crud("saksi", "saksi", SaksiBase, Saksi))
+
+# ================ CRUD Aktivitas: Kegiatan / Agenda / Tugas ================
+api_router.include_router(make_crud("kegiatan", "kegiatan", KegiatanBase, Kegiatan, sort_field="tanggal_dibuat", use_area_filter=False))
+api_router.include_router(make_crud("agenda", "agenda", AgendaBase, Agenda, sort_field="tanggal_dibuat", use_area_filter=False))
+api_router.include_router(make_crud("tugas", "tugas", TugasBase, Tugas, sort_field="tanggal_dibuat", use_area_filter=False))
 
 # ================ AGGREGATED ORGANISASI ================
 @api_router.get("/organisasi/{jenis}")

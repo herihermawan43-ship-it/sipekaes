@@ -148,3 +148,43 @@ class QuickCount(QuickCountBase):
     id: str = Field(default_factory=uid)
     submitted_by: Optional[str] = ""  # username saksi
     submitted_at: datetime = Field(default_factory=datetime.utcnow)
+
+# ============ AKTIVITAS: KEGIATAN / AGENDA / TUGAS ============
+class KegiatanBase(BaseModel):
+    nama: str
+    tanggal: Optional[str] = ""
+    jam: Optional[str] = ""
+    lokasi: Optional[str] = ""
+    wilayah: Optional[str] = ""
+    status: str = "rencana"  # rencana, progress, selesai
+    foto: Optional[str] = ""
+    progress: Optional[int] = None
+    target: Optional[int] = 0
+    hadir: Optional[int] = 0
+
+class Kegiatan(KegiatanBase):
+    id: str = Field(default_factory=uid)
+    tanggal_dibuat: datetime = Field(default_factory=datetime.utcnow)
+
+class AgendaBase(BaseModel):
+    judul: str
+    tanggal: Optional[str] = ""
+    jam: Optional[str] = ""
+    lokasi: Optional[str] = ""
+    tipe: str = "internal"  # publik, internal
+
+class Agenda(AgendaBase):
+    id: str = Field(default_factory=uid)
+    tanggal_dibuat: datetime = Field(default_factory=datetime.utcnow)
+
+class TugasBase(BaseModel):
+    judul: str
+    pic: Optional[str] = ""
+    deadline: Optional[str] = ""
+    prioritas: str = "sedang"  # tinggi, sedang, rendah
+    status: str = "progress"  # progress, selesai, overdue
+    progress: int = 0
+
+class Tugas(TugasBase):
+    id: str = Field(default_factory=uid)
+    tanggal_dibuat: datetime = Field(default_factory=datetime.utcnow)
